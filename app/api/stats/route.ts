@@ -3,6 +3,10 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+interface GigBudget {
+  budget_sats: number;
+}
+
 export async function GET() {
   try {
     const { count: totalGigs } = await supabase
@@ -28,18 +32,23 @@ export async function GET() {
       .select('budget_sats')
       .eq('status', 'completed');
     
-    const volume = totalVolume?.reduce((sum: number, g: { budget_sats: number }) => sum + g.budget_sats, 0) || 0;
+    let volume = 0;
+    if (totalVolume && totalVolume.length > 0) {
+      for (const g of totalVolume) {
+        volume += g.budget_sats;
+      }
+    }
     
     return NextResponse.json({
-      total_gigs: totalGigs || 0,
-      total_users: totalUsers || 0,
-      open_gigs: openGigs || 0,
-      completed_gigs: completedGigs || 0,
+      total_gigs: totalGigs ?? 0,
+      total_users: totalUsers ?? 0,
+      open_gigs: openGigs ?? 0,
+      completed_gigs: completedGigs ?? 0,
       total_volume_sats: volume,
       updated_at: new Date().toISOString()
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
