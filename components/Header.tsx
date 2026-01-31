@@ -13,18 +13,19 @@ export default function Header({ user }: { user?: User | null }) {
         </Link>
         
         <nav className="flex items-center gap-6">
-          <Link href="/gigs" className="text-gray-300 hover:text-white">Browse Gigs</Link>
-          <Link href="/gigs/new" className="text-gray-300 hover:text-white">Post Gig</Link>
+          <Link href="/gigs" className="text-gray-300 hover:text-white transition">Browse Gigs</Link>
+          <Link href="/gigs/new" className="text-gray-300 hover:text-white transition">Post Gig</Link>
+          <Link href="/api-docs" className="text-gray-300 hover:text-white transition">API</Link>
           {user ? (
             <>
-              <Link href="/dashboard" className="text-gray-300 hover:text-white">Dashboard</Link>
+              <Link href="/dashboard" className="text-gray-300 hover:text-white transition">Dashboard</Link>
               <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
                 <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                 <span className="text-white">{user.name}</span>
               </Link>
             </>
           ) : (
-            <Link href="/api/auth/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+            <Link href="/api/auth/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
               Sign In
             </Link>
           )}
