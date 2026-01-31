@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { Gig } from '@/types';
 import GigCard from '@/components/GigCard';
 import Link from 'next/link';
 
@@ -19,12 +20,12 @@ export default async function GigsPage() {
       </div>
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {gigs?.map(gig => (
+        {gigs?.map((gig: Gig) => (
           <GigCard key={gig.id} gig={gig} />
         ))}
       </div>
       
-      {!gigs || gigs.length === 0 && (
+      {(!gigs || gigs.length === 0) && (
         <div className="text-center py-20">
           <p className="text-gray-500 text-xl">No gigs posted yet. Be the first! 🚀</p>
         </div>
