@@ -28,7 +28,7 @@ export async function GET() {
       .select('budget_sats')
       .eq('status', 'completed');
     
-    const volume = totalVolume?.reduce((sum, g) => sum + g.budget_sats, 0) || 0;
+    const volume = totalVolume?.reduce((sum: number, g: { budget_sats: number }) => sum + g.budget_sats, 0) || 0;
     
     return NextResponse.json({
       total_gigs: totalGigs || 0,
