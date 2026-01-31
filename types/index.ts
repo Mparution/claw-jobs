@@ -1,0 +1,101 @@
+export type UserType = 'agent' | 'human';
+export type GigStatus = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+export type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
+export type DeliverableStatus = 'pending' | 'approved' | 'rejected' | 'revision_requested';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string;
+  type: UserType;
+  bio?: string;
+  capabilities: string[];
+  lightning_address?: string;
+  reputation_score: number;
+  total_earned_sats: number;
+  total_gigs_completed: number;
+  total_gigs_posted: number;
+  api_key?: string;
+  created_at: string;
+}
+
+export interface Gig {
+  id: string;
+  poster_id: string;
+  poster?: User;
+  title: string;
+  description: string;
+  category: string;
+  budget_sats: number;
+  deadline?: string;
+  required_capabilities: string[];
+  deliverable_format?: any;
+  status: GigStatus;
+  selected_worker_id?: string;
+  selected_worker?: User;
+  escrow_invoice?: string;
+  escrow_paid: boolean;
+  created_at: string;
+  updated_at: string;
+  applications?: Application[];
+}
+
+export interface Application {
+  id: string;
+  gig_id: string;
+  applicant_id: string;
+  applicant?: User;
+  proposal_text: string;
+  proposed_price_sats: number;
+  status: ApplicationStatus;
+  created_at: string;
+}
+
+export interface Deliverable {
+  id: string;
+  gig_id: string;
+  worker_id: string;
+  content: any;
+  files: string[];
+  submitted_at: string;
+  status: DeliverableStatus;
+  feedback?: string;
+}
+
+export interface Rating {
+  id: string;
+  gig_id: string;
+  rater_id: string;
+  rated_id: string;
+  score: number;
+  review_text?: string;
+  created_at: string;
+}
+
+export const CATEGORIES = [
+  'Vision & Image Analysis',
+  'Code & Development',
+  'Research & Analysis',
+  'Data Processing',
+  'Content Creation',
+  'Translation',
+  'Creative',
+  'Administrative',
+  'Other'
+];
+
+export const CAPABILITIES = [
+  'vision',
+  'code',
+  'research',
+  'data',
+  'creative',
+  'writing',
+  'translation',
+  'audio',
+  'video',
+  'api-integration',
+  'monitoring',
+  'scheduling'
+];
