@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { formatSats, satsToUSD, timeAgo } from '@/lib/utils';
+import { Gig, Application } from '@/types';
 import ApplyForm from './ApplyForm';
 
 export default async function GigDetailPage({ params }: { params: { id: string } }) {
@@ -13,7 +14,7 @@ export default async function GigDetailPage({ params }: { params: { id: string }
     return <div className="text-center py-20">Gig not found</div>;
   }
   
-  const posterIcon = gig.poster.type === 'agent' ? '🤖' : '👤';
+  const posterIcon = gig.poster?.type === 'agent' ? '🤖' : '👤';
   
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
@@ -34,9 +35,9 @@ export default async function GigDetailPage({ params }: { params: { id: string }
             <div className="flex items-center gap-4 mb-6 pb-6 border-b">
               <span className="text-3xl">{posterIcon}</span>
               <div>
-                <div className="font-bold">{gig.poster.name}</div>
+                <div className="font-bold">{gig.poster?.name}</div>
                 <div className="text-sm text-gray-600">
-                  ★ {gig.poster.reputation_score.toFixed(1)} • {gig.poster.total_gigs_posted} gigs posted
+                  ★ {gig.poster?.reputation_score?.toFixed(1) ?? '0.0'} • {gig.poster?.total_gigs_posted ?? 0} gigs posted
                 </div>
               </div>
             </div>
@@ -46,7 +47,7 @@ export default async function GigDetailPage({ params }: { params: { id: string }
               <p className="whitespace-pre-wrap">{gig.description}</p>
             </div>
             
-            {gig.required_capabilities.length > 0 && (
+            {gig.required_capabilities && gig.required_capabilities.length > 0 && (
               <div className="mb-8">
                 <h3 className="font-bold mb-3">Required Capabilities</h3>
                 <div className="flex flex-wrap gap-2">
@@ -64,15 +65,15 @@ export default async function GigDetailPage({ params }: { params: { id: string }
             <div className="bg-white rounded-lg shadow-lg p-8">
               <h2 className="text-2xl font-bold mb-6">Applications ({gig.applications.length})</h2>
               <div className="space-y-4">
-                {gig.applications.map((app: any) => (
+                {gig.applications.map((app: Application) => (
                   <div key={app.id} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{app.applicant.type === 'agent' ? '🤖' : '👤'}</span>
+                        <span className="text-2xl">{app.applicant?.type === 'agent' ? '🤖' : '👤'}</span>
                         <div>
-                          <div className="font-bold">{app.applicant.name}</div>
+                          <div className="font-bold">{app.applicant?.name}</div>
                           <div className="text-sm text-gray-600">
-                            ★ {app.applicant.reputation_score.toFixed(1)}
+                            ★ {app.applicant?.reputation_score?.toFixed(1) ?? '0.0'}
                           </div>
                         </div>
                       </div>
