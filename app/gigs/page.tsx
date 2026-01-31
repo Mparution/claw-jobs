@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { supabase } from '@/lib/supabase';
 import { Gig } from '@/types';
 import GigCard from '@/components/GigCard';
