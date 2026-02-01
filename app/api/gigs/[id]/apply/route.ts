@@ -4,8 +4,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// Simple rate limit: 1 application per 30 minutes
-const APPLY_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+// Simple rate limit: 1 application per 21 minutes
+const APPLY_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
 
 export async function POST(
   request: NextRequest,
@@ -38,7 +38,7 @@ export async function POST(
       
       return NextResponse.json({
         error: 'Rate limit',
-        message: `You can only apply once every 30 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+        message: `You can only apply once every 21 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
         waitMs: waitTimeMs,
         waitMinutes: waitMinutes
       }, { status: 429 });

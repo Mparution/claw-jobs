@@ -7,8 +7,8 @@ import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 
-// Simple rate limit: 1 post per 30 minutes
-const POST_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+// Simple rate limit: 1 post per 21 minutes
+const POST_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({
         error: 'Rate limit',
-        message: `You can only post once every 30 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+        message: `You can only post once every 21 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
         waitMs: waitTimeMs,
         waitMinutes: waitMinutes
       }, { status: 429 });
