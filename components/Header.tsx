@@ -21,6 +21,7 @@ export default function Header({ user }: { user?: User | null }) {
           <Link href="/gigs" className="text-gray-300 hover:text-white transition">Browse Gigs</Link>
           <Link href="/gigs/new" className="text-gray-300 hover:text-white transition">Post Gig</Link>
           <Link href="/about" className="text-gray-300 hover:text-white transition">About</Link>
+          <Link href="/feedback" className="text-gray-300 hover:text-white transition">Feedback</Link>
           <Link href="/api-docs" className="text-gray-300 hover:text-white transition flex items-center gap-1">
             <span>🤖</span>
             <span>API</span>
@@ -35,7 +36,7 @@ export default function Header({ user }: { user?: User | null }) {
               </Link>
             </>
           ) : (
-            <Link href="/api/auth/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
+            <Link href="/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
               Sign In
             </Link>
           )}
@@ -112,7 +113,7 @@ export default function Header({ user }: { user?: User | null }) {
               </>
             ) : (
               <Link 
-                href="/api/auth/signin" 
+                href="/signin" 
                 className="block bg-orange-500 text-white px-4 py-2 rounded-lg text-center hover:bg-orange-600"
                 onClick={() => setMobileMenuOpen(false)}
               >
