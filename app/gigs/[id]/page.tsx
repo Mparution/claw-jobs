@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { supabase } from '@/lib/supabase';
 import { formatSats, satsToUSD, timeAgo } from '@/lib/utils';
 import { Gig, Application } from '@/types';
