@@ -3,35 +3,46 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { createInvoice, checkInvoice } from '@/lib/lightning';
-import { RATE_LIMITS } from '@/lib/constants';
+
+// Simple rate limit: 1 application per 30 minutes
+const APPLY_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const body = await request.json();
-  const { applicant_id, proposal_text, proposed_price_sats, fee_payment_hash } = body;
+  const { applicant_id, proposal_text, proposed_price_sats } = body;
   
   if (!applicant_id) {
     return NextResponse.json({ error: 'applicant_id is required' }, { status: 400 });
   }
 
-  // Check rate limit
-  const rateCheck = await checkRateLimit(applicant_id, 'application');
-  
-  if (!rateCheck.allowed) {
-    return NextResponse.json({
-      error: 'Rate limit',
-      message: rateCheck.reason,
-      rateLimit: {
-        freeRemaining: rateCheck.freeRemaining,
-        paidRemaining: rateCheck.paidRemaining,
-        canPayForMore: rateCheck.canPayForMore,
-        feeSats: rateCheck.feeSats
-      }
-    }, { status: 429 });
+  // Check rate limit: get user's last application
+  const { data: lastApp } = await supabase
+    .from('applications')
+    .select('created_at')
+    .eq('applicant_id', applicant_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (lastApp) {
+    const lastApplyTime = new Date(lastApp.created_at).getTime();
+    const now = Date.now();
+    const timeSinceLastApply = now - lastApplyTime;
+    
+    if (timeSinceLastApply < APPLY_COOLDOWN_MS) {
+      const waitTimeMs = APPLY_COOLDOWN_MS - timeSinceLastApply;
+      const waitMinutes = Math.ceil(waitTimeMs / 60000);
+      
+      return NextResponse.json({
+        error: 'Rate limit',
+        message: `You can only apply once every 30 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+        waitMs: waitTimeMs,
+        waitMinutes: waitMinutes
+      }, { status: 429 });
+    }
   }
 
   // Validate gig exists and is open
@@ -65,80 +76,22 @@ export async function POST(
     return NextResponse.json({ error: 'You have already applied to this gig' }, { status: 400 });
   }
 
-  // If payment required and no payment hash, return invoice
-  if (rateCheck.requiresPayment && !fee_payment_hash) {
-    try {
-      const invoice = await createInvoice(
-        RATE_LIMITS.extraActionFeeSats,
-        `Claw Jobs: Extra application fee for "${gig.title.substring(0, 30)}..."`
-      );
-      
-      return NextResponse.json({
-        requires_payment: true,
-        fee_sats: RATE_LIMITS.extraActionFeeSats,
-        fee_invoice: invoice.invoice,
-        fee_payment_hash: invoice.payment_hash,
-        message: `You've used your free application this hour. Pay ${RATE_LIMITS.extraActionFeeSats} sats to apply again.`,
-        rateLimit: {
-          freeRemaining: 0,
-          paidRemaining: rateCheck.paidRemaining,
-          maxPerHour: RATE_LIMITS.maxApplicationsPerHour
-        }
-      }, { status: 402 });
-    } catch (error) {
-      console.error('Failed to create fee invoice:', error);
-      return NextResponse.json({ error: 'Failed to create payment invoice' }, { status: 500 });
-    }
-  }
-
-  // Verify payment if required
-  if (rateCheck.requiresPayment && fee_payment_hash) {
-    try {
-      const paymentStatus = await checkInvoice(fee_payment_hash);
-      if (!paymentStatus.settled) {
-        return NextResponse.json({ 
-          error: 'Payment not received yet',
-          fee_payment_hash,
-          hint: 'Pay the invoice first, then resubmit'
-        }, { status: 402 });
-      }
-    } catch (error) {
-      console.error('Failed to verify payment:', error);
-      return NextResponse.json({ error: 'Failed to verify payment' }, { status: 500 });
-    }
-  }
-
-  // Validate remaining fields
-  if (!proposal_text || !proposed_price_sats) {
-    return NextResponse.json({ error: 'Missing proposal_text or proposed_price_sats' }, { status: 400 });
-  }
-  
   // Create application
-  const { data, error } = await supabase
+  const { data: application, error } = await supabase
     .from('applications')
     .insert({
       gig_id: params.id,
       applicant_id,
-      proposal_text,
-      proposed_price_sats,
-      status: 'pending',
-      fee_paid: rateCheck.requiresPayment ? RATE_LIMITS.extraActionFeeSats : 0,
-      fee_payment_hash: fee_payment_hash || null
+      proposal_text: proposal_text || null,
+      proposed_price_sats: proposed_price_sats || null,
+      status: 'pending'
     })
-    .select('*, applicant:users!applicant_id(*)')
+    .select()
     .single();
-  
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  
-  return NextResponse.json({
-    ...data,
-    message: 'Application submitted successfully!',
-    rateLimit: {
-      freeRemaining: rateCheck.freeRemaining,
-      paidRemaining: rateCheck.paidRemaining - 1,
-      feePaid: rateCheck.requiresPayment ? RATE_LIMITS.extraActionFeeSats : 0
-    }
-  });
+
+  return NextResponse.json(application);
 }
