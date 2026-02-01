@@ -3,10 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { createInvoice, checkInvoice } from '@/lib/lightning';
+import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
-import { MODERATION_STATUS, RATE_LIMITS } from '@/lib/constants';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { MODERATION_STATUS } from '@/lib/constants';
+
+// Simple rate limit: 1 post per 30 minutes
+const POST_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -40,68 +42,36 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id, fee_payment_hash } = body;
+  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id } = body;
   
   if (!title || !description || !category || !budget_sats || !poster_id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  // Check rate limit
-  const rateCheck = await checkRateLimit(poster_id, 'gig');
-  
-  if (!rateCheck.allowed) {
-    return NextResponse.json({
-      error: 'Rate limit',
-      message: rateCheck.reason,
-      rateLimit: {
-        freeRemaining: rateCheck.freeRemaining,
-        paidRemaining: rateCheck.paidRemaining,
-        canPayForMore: rateCheck.canPayForMore,
-        feeSats: rateCheck.feeSats
-      }
-    }, { status: 429 });
-  }
+  // Check rate limit: get user's last gig
+  const { data: lastGig } = await supabase
+    .from('gigs')
+    .select('created_at')
+    .eq('poster_id', poster_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
 
-  // If payment required and no payment hash, return invoice
-  if (rateCheck.requiresPayment && !fee_payment_hash) {
-    try {
-      const invoice = await createInvoice(
-        RATE_LIMITS.extraActionFeeSats,
-        `Claw Jobs: Extra gig post fee`
-      );
+  if (lastGig) {
+    const lastPostTime = new Date(lastGig.created_at).getTime();
+    const now = Date.now();
+    const timeSinceLastPost = now - lastPostTime;
+    
+    if (timeSinceLastPost < POST_COOLDOWN_MS) {
+      const waitTimeMs = POST_COOLDOWN_MS - timeSinceLastPost;
+      const waitMinutes = Math.ceil(waitTimeMs / 60000);
       
       return NextResponse.json({
-        requires_payment: true,
-        fee_sats: RATE_LIMITS.extraActionFeeSats,
-        fee_invoice: invoice.invoice,
-        fee_payment_hash: invoice.payment_hash,
-        message: `You've used your free post this hour. Pay ${RATE_LIMITS.extraActionFeeSats} sats to post another.`,
-        rateLimit: {
-          freeRemaining: 0,
-          paidRemaining: rateCheck.paidRemaining,
-          maxPerHour: RATE_LIMITS.maxGigsPerHour
-        }
-      }, { status: 402 });
-    } catch (error) {
-      console.error('Failed to create fee invoice:', error);
-      return NextResponse.json({ error: 'Failed to create payment invoice' }, { status: 500 });
-    }
-  }
-
-  // If payment required, verify it
-  if (rateCheck.requiresPayment && fee_payment_hash) {
-    try {
-      const paymentStatus = await checkInvoice(fee_payment_hash);
-      if (!paymentStatus.settled) {
-        return NextResponse.json({ 
-          error: 'Payment not received yet',
-          fee_payment_hash,
-          hint: 'Pay the invoice first, then resubmit'
-        }, { status: 402 });
-      }
-    } catch (error) {
-      console.error('Failed to verify payment:', error);
-      return NextResponse.json({ error: 'Failed to verify payment' }, { status: 500 });
+        error: 'Rate limit',
+        message: `You can only post once every 30 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+        waitMs: waitTimeMs,
+        waitMinutes: waitMinutes
+      }, { status: 429 });
     }
   }
   
@@ -144,9 +114,7 @@ export async function POST(request: NextRequest) {
       status: modResult.status === MODERATION_STATUS.APPROVED ? 'open' : 'pending_review',
       moderation_status: modResult.status,
       moderation_notes: modResult.reason || null,
-      flagged_keywords: modResult.flaggedKeywords.length > 0 ? modResult.flaggedKeywords : null,
-      fee_paid: rateCheck.requiresPayment ? RATE_LIMITS.extraActionFeeSats : 0,
-      fee_payment_hash: fee_payment_hash || null
+      flagged_keywords: modResult.flaggedKeywords.length > 0 ? modResult.flaggedKeywords : null
     })
     .select()
     .single();
@@ -171,12 +139,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ...gig,
         escrow_invoice: invoice.invoice,
-        escrow_payment_hash: invoice.payment_hash,
-        rateLimit: {
-          freeRemaining: rateCheck.freeRemaining,
-          paidRemaining: rateCheck.paidRemaining - 1,
-          feePaid: rateCheck.requiresPayment ? RATE_LIMITS.extraActionFeeSats : 0
-        }
+        escrow_payment_hash: invoice.payment_hash
       });
     } catch (error: any) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -185,10 +148,6 @@ export async function POST(request: NextRequest) {
   
   return NextResponse.json({
     ...gig,
-    message: 'Gig submitted for review.',
-    rateLimit: {
-      freeRemaining: rateCheck.freeRemaining,
-      paidRemaining: rateCheck.paidRemaining - 1
-    }
+    message: 'Gig submitted for review.'
   });
 }
