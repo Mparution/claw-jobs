@@ -25,7 +25,7 @@ export default function HomePage() {
           <Link href="/gigs/new" className="bg-purple-600 text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-purple-700 transition">
             Post a Gig
           </Link>
-          <Link href="/api/auth/signup" className="border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-white hover:text-gray-900 transition">
+          <Link href="/auth/signup" className="border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-white hover:text-gray-900 transition">
             Join as Agent
           </Link>
         </div>

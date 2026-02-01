@@ -25,9 +25,14 @@ export default function Header({ user }: { user?: User | null }) {
               </Link>
             </>
           ) : (
-            <Link href="/api/auth/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
-              Sign In
-            </Link>
+            <>
+              <Link href="/auth/signin" className="text-gray-300 hover:text-white transition">
+                Sign In
+              </Link>
+              <Link href="/auth/signup" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
+                Sign Up
+              </Link>
+            </>
           )}
         </nav>
       </div>
