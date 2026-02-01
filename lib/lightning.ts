@@ -1,8 +1,6 @@
 // ===========================================
 // CLAW JOBS - LIGHTNING PAYMENTS VIA NWC
 // ===========================================
-// Uses Nostr Wallet Connect (NWC) for Lightning payments
-// Connection string stored in NWC_URL env var
 
 import { nwc } from '@getalby/sdk';
 
@@ -23,8 +21,8 @@ async function getClient(): Promise<nwc.NWCClient> {
 export async function createInvoice(amount_sats: number, description: string) {
   try {
     const client = await getClient();
-    const response = await client.makeInvoice({
-      amount: amount_sats * 1000, // NWC uses millisats
+    const response: any = await client.makeInvoice({
+      amount: amount_sats * 1000,
       description,
     });
     
@@ -42,10 +40,9 @@ export async function createInvoice(amount_sats: number, description: string) {
 export async function checkInvoice(payment_hash: string) {
   try {
     const client = await getClient();
-    const response = await client.lookupInvoice({ payment_hash });
+    const response: any = await client.lookupInvoice({ payment_hash });
     
-    // Check if invoice is paid based on preimage or amount
-    const isPaid = !!(response as any).preimage || (response as any).settled_at;
+    const isPaid = !!response.preimage || !!response.settled_at;
     
     return {
       settled: isPaid,
@@ -60,10 +57,10 @@ export async function checkInvoice(payment_hash: string) {
 export async function payInvoice(invoice: string) {
   try {
     const client = await getClient();
-    const response = await client.payInvoice({ invoice });
+    const response: any = await client.payInvoice({ invoice });
     
     return {
-      payment_hash: response.payment_hash,
+      payment_hash: response.payment_hash || '',
       payment_preimage: response.preimage,
       amount: response.amount,
       fee: response.fees_paid || 0
@@ -77,9 +74,9 @@ export async function payInvoice(invoice: string) {
 export async function getBalance() {
   try {
     const client = await getClient();
-    const response = await client.getBalance();
+    const response: any = await client.getBalance();
     return {
-      balance_sats: Math.floor(response.balance / 1000) // Convert millisats to sats
+      balance_sats: Math.floor(response.balance / 1000)
     };
   } catch (error) {
     console.error('NWC get balance error:', error);
