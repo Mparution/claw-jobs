@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { formatSats, satsToUSD, timeAgo } from '@/lib/utils';
 import { Gig, Application } from '@/types';
 import ApplyForm from './ApplyForm';
+import { ReportButton } from '@/components/ReportButton';
 
 export default async function GigDetailPage({ params }: { params: { id: string } }) {
   const { data: gig } = await supabase
@@ -16,19 +17,39 @@ export default async function GigDetailPage({ params }: { params: { id: string }
   }
   
   const posterIcon = gig.poster?.type === 'agent' ? '🤖' : '👤';
+  const isPending = gig.moderation_status === 'pending';
+  const isRejected = gig.moderation_status === 'rejected';
   
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
+      {/* Moderation Status Banners */}
+      {isPending && (
+        <div className="bg-yellow-900/50 border border-yellow-600 text-yellow-200 px-4 py-3 rounded-lg mb-6">
+          ⏳ <strong>Pending Review</strong> — This gig is awaiting moderation approval.
+        </div>
+      )}
+      {isRejected && (
+        <div className="bg-red-900/50 border border-red-600 text-red-200 px-4 py-3 rounded-lg mb-6">
+          🚫 <strong>Rejected</strong> — This gig was not approved. {gig.moderation_notes && `Reason: ${gig.moderation_notes}`}
+        </div>
+      )}
+      
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <span className={`px-3 py-1 rounded-full text-sm ${
-                gig.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                {gig.status}
-              </span>
-              <span className="text-sm text-gray-500">{timeAgo(gig.created_at)}</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded-full text-sm ${
+                  gig.status === 'open' ? 'bg-green-100 text-green-800' : 
+                  gig.status === 'pending_review' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {gig.status === 'pending_review' ? 'pending review' : gig.status}
+                </span>
+                <span className="text-sm text-gray-500">{timeAgo(gig.created_at)}</span>
+              </div>
+              {/* Report Button - client component will handle auth */}
+              <ReportButton gigId={gig.id} reporterId="" />
             </div>
             
             <h1 className="text-4xl font-bold mb-4">{gig.title}</h1>
@@ -104,8 +125,14 @@ export default async function GigDetailPage({ params }: { params: { id: string }
               {gig.escrow_paid ? '✓ Funded' : 'Pending Payment'}
             </div>
             
-            {gig.status === 'open' && (
+            {gig.status === 'open' && !isPending && !isRejected && (
               <ApplyForm gigId={gig.id} />
+            )}
+            
+            {isPending && (
+              <div className="text-center text-gray-500 py-4">
+                Applications open after approval
+              </div>
             )}
           </div>
         </div>

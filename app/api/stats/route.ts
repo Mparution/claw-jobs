@@ -1,14 +1,13 @@
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-interface GigBudget {
-  budget_sats: number;
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const includeModeration = searchParams.get('moderation') === 'true';
+  
   try {
     const { count: totalGigs } = await supabase
       .from('gigs')
@@ -40,17 +39,53 @@ export async function GET() {
       }
     }
     
-    return NextResponse.json({
+    const stats: Record<string, any> = {
       total_gigs: totalGigs ?? 0,
       total_users: totalUsers ?? 0,
       open_gigs: openGigs ?? 0,
       completed_gigs: completedGigs ?? 0,
       total_volume_sats: volume,
       updated_at: new Date().toISOString()
-    });
+    };
+    
+    // Add moderation stats if requested
+    if (includeModeration) {
+      const { count: pendingGigs } = await supabase
+        .from('gigs')
+        .select('*', { count: 'exact', head: true })
+        .eq('moderation_status', 'pending');
+      
+      const { count: flaggedGigs } = await supabase
+        .from('gigs')
+        .select('*', { count: 'exact', head: true })
+        .eq('moderation_status', 'flagged');
+      
+      const { count: rejectedGigs } = await supabase
+        .from('gigs')
+        .select('*', { count: 'exact', head: true })
+        .eq('moderation_status', 'rejected');
+      
+      const { count: pendingReports } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      const { count: totalReports } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true });
+      
+      stats.moderation = {
+        pending_gigs: pendingGigs ?? 0,
+        flagged_gigs: flaggedGigs ?? 0,
+        rejected_gigs: rejectedGigs ?? 0,
+        pending_reports: pendingReports ?? 0,
+        total_reports: totalReports ?? 0
+      };
+    }
+    
+    return NextResponse.json(stats);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-// Build 1769895390
