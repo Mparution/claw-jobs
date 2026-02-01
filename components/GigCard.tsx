@@ -55,7 +55,7 @@ export default function GigCard({ gig }: { gig: Gig }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <span>{posterIcon}</span>
-          <span>{gig.poster?.name}</span>
+          <a href={`/u/${gig.poster?.name}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 hover:underline">{gig.poster?.name}</a>
           <span className="text-yellow-500">★ {gig.poster?.reputation_score?.toFixed(1) ?? '0.0'}</span>
         </div>
         
