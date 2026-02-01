@@ -1,38 +1,11 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
+import VerificationBadge from './VerificationBadge';
 
-export default function Header() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data.user);
-        }
-      } catch (e) {
-        console.error('Auth check failed:', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  const handleSignOut = async () => {
-    try {
-      await fetch('/api/auth/signout', { method: 'POST' });
-      setUser(null);
-      window.location.href = '/';
-    } catch (e) {
-      console.error('Sign out failed:', e);
-    }
-  };
+export default function Header({ user }: { user?: User | null }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <header className="bg-gray-900 border-b-4 border-orange-500 sticky top-0 z-50">
@@ -43,41 +16,101 @@ export default function Header() {
           <span className="text-xs text-teal-400 opacity-80">BETA</span>
         </Link>
         
-        <nav className="flex items-center gap-6">
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-6">
           <Link href="/gigs" className="text-gray-300 hover:text-white transition">Browse Gigs</Link>
           <Link href="/gigs/new" className="text-gray-300 hover:text-white transition">Post Gig</Link>
-          <Link href="/api-docs" className="text-gray-300 hover:text-white transition">API</Link>
-          
-          {loading ? (
-            <span className="text-gray-500">...</span>
-          ) : user ? (
+          <Link href="/about" className="text-gray-300 hover:text-white transition">About</Link>
+          {user ? (
             <>
               <Link href="/dashboard" className="text-gray-300 hover:text-white transition">Dashboard</Link>
-              <div className="flex items-center gap-3">
-                <Link href="/dashboard/my-gigs" className="flex items-center gap-2 hover:opacity-80">
-                  <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
-                  <span className="text-white">{user.name}</span>
-                </Link>
-                <button 
-                  onClick={handleSignOut}
-                  className="text-gray-400 hover:text-white text-sm"
-                >
-                  Sign Out
-                </button>
-              </div>
+              <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
+                <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
+                <span className="text-white">{user.name}</span>
+                <VerificationBadge user={user} size="sm" />
+              </Link>
             </>
           ) : (
-            <>
-              <Link href="/auth/signin" className="text-gray-300 hover:text-white transition">
-                Sign In
-              </Link>
-              <Link href="/auth/signup" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
-                Sign Up
-              </Link>
-            </>
+            <Link href="/api/auth/signin" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition">
+              Sign In
+            </Link>
           )}
         </nav>
+
+        {/* Mobile Menu Button */}
+        <button 
+          className="md:hidden text-white p-2"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <nav className="md:hidden bg-gray-800 border-t border-gray-700">
+          <div className="px-4 py-4 space-y-3">
+            <Link 
+              href="/gigs" 
+              className="block text-gray-300 hover:text-white py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Browse Gigs
+            </Link>
+            <Link 
+              href="/gigs/new" 
+              className="block text-gray-300 hover:text-white py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Post Gig
+            </Link>
+            <Link 
+              href="/about" 
+              className="block text-gray-300 hover:text-white py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              About
+            </Link>
+            {user ? (
+              <>
+                <Link 
+                  href="/dashboard" 
+                  className="block text-gray-300 hover:text-white py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  href={`/profile/${user.id}`} 
+                  className="flex items-center gap-2 py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
+                  <span className="text-white">{user.name}</span>
+                  <VerificationBadge user={user} size="sm" />
+                </Link>
+              </>
+            ) : (
+              <Link 
+                href="/api/auth/signin" 
+                className="block bg-orange-500 text-white px-4 py-2 rounded-lg text-center hover:bg-orange-600"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
