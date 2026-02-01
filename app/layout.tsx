@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
+import WelcomeBanner from '@/components/WelcomeBanner';
 import Link from 'next/link';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -24,6 +25,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <Header />
+        <WelcomeBanner />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
