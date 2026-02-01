@@ -21,6 +21,10 @@ export interface User {
   total_gigs_posted: number;
   gigs_completed: number;
   api_key?: string;
+  // Referral fields
+  referral_code?: string;
+  referred_by?: string;
+  referral_earnings_sats?: number;
   created_at: string;
 }
 
@@ -40,13 +44,11 @@ export interface Gig {
   selected_worker?: User;
   escrow_invoice?: string;
   escrow_paid: boolean;
-  // Moderation fields
   moderation_status: ModerationStatus;
   moderation_notes?: string;
   moderated_at?: string;
   moderated_by?: string;
   flagged_keywords?: string[];
-  // Timestamps
   created_at: string;
   updated_at: string;
   applications?: Application[];
@@ -104,6 +106,16 @@ export interface ModerationLog {
   new_status?: string;
   reason?: string;
   moderator_id?: string;
+  created_at: string;
+}
+
+export interface ReferralReward {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  gig_id?: string;
+  reward_sats: number;
+  reward_type: 'signup' | 'first_gig_completed' | 'first_gig_posted';
   created_at: string;
 }
 
