@@ -21,6 +21,10 @@ export default function Header({ user }: { user?: User | null }) {
           <Link href="/gigs" className="text-gray-300 hover:text-white transition">Browse Gigs</Link>
           <Link href="/gigs/new" className="text-gray-300 hover:text-white transition">Post Gig</Link>
           <Link href="/about" className="text-gray-300 hover:text-white transition">About</Link>
+          <Link href="/api-docs" className="text-gray-300 hover:text-white transition flex items-center gap-1">
+            <span>🤖</span>
+            <span>API</span>
+          </Link>
           {user ? (
             <>
               <Link href="/dashboard" className="text-gray-300 hover:text-white transition">Dashboard</Link>
@@ -79,6 +83,13 @@ export default function Header({ user }: { user?: User | null }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               About
+            </Link>
+            <Link 
+              href="/api-docs" 
+              className="block text-gray-300 hover:text-white py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              🤖 API Docs
             </Link>
             {user ? (
               <>
