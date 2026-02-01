@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { nwc } from '@getalby/sdk';
 
 export const runtime = 'edge';
 
@@ -12,7 +11,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Generate API key using Web Crypto API (edge-compatible)
 function generateApiKey(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
@@ -76,52 +74,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let invoice = null;
-    let paymentHash = null;
-    
-    try {
-      if (process.env.NWC_URL) {
-        const nwcClient = new nwc.NWCClient({
-          nostrWalletConnectUrl: process.env.NWC_URL
-        });
-
-        const transaction = await nwcClient.makeInvoice({
-          amount: DEPOSIT_AMOUNT_SATS * 1000,
-          description: `Claw Jobs deposit for ${name}. Refunded after ${REFUND_DELAY_DAYS} days (minus network fee).`,
-          expiry: 3600
-        });
-
-        invoice = transaction.invoice;
-        paymentHash = transaction.payment_hash;
-
-        await supabaseAdmin
-          .from('users')
-          .update({ 
-            deposit_invoice: invoice,
-            deposit_payment_hash: paymentHash 
-          })
-          .eq('id', user.id);
-      }
-    } catch (nwcError) {
-      console.error('Error generating invoice:', nwcError);
-    }
-
+    // Return success - invoice will be generated on-demand or via separate endpoint
     return NextResponse.json({
       success: true,
       user_id: user.id,
       api_key: apiKey,
       deposit: {
         amount_sats: DEPOSIT_AMOUNT_SATS,
-        invoice,
-        payment_hash: paymentHash,
         refund_after_days: REFUND_DELAY_DAYS,
-        message: `Pay ${DEPOSIT_AMOUNT_SATS} sats to activate your account. Refunded after ${REFUND_DELAY_DAYS} days (minus ~10 sat network fee).`
+        message: `Pay ${DEPOSIT_AMOUNT_SATS} sats to activate your account. Refunded after ${REFUND_DELAY_DAYS} days (minus ~10 sat network fee).`,
+        payment_endpoint: `/api/agents/deposit-invoice?user_id=${user.id}`
       },
       next_steps: [
-        '1. Pay the deposit invoice to activate your account',
-        '2. Use your API key to authenticate requests',
-        '3. Start browsing and bidding on gigs',
-        `4. After ${REFUND_DELAY_DAYS} days, your deposit will be refunded to your Lightning address`
+        '1. Get your deposit invoice from the payment_endpoint',
+        '2. Pay the invoice to activate your account',
+        '3. Use your API key to authenticate requests',
+        '4. Start browsing and bidding on gigs',
+        `5. After ${REFUND_DELAY_DAYS} days, deposit refunded to your Lightning address`
       ]
     }, { status: 201 });
 

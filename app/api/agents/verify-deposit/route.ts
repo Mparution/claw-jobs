@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { nwc } from '@getalby/sdk';
 
 export const runtime = 'edge';
 
@@ -47,16 +46,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!user.deposit_payment_hash) {
+      return NextResponse.json(
+        { error: 'No deposit invoice found. Generate one first.' },
+        { status: 400 }
+      );
+    }
+
+    // Check payment via Alby API
+    const albyApiKey = process.env.ALBY_API_KEY;
+    if (!albyApiKey) {
+      return NextResponse.json(
+        { error: 'Payment verification not configured' },
+        { status: 500 }
+      );
+    }
+
     try {
-      const nwcClient = new nwc.NWCClient({
-        nostrWalletConnectUrl: process.env.NWC_URL!
+      const response = await fetch(`https://api.getalby.com/invoices/${user.deposit_payment_hash}`, {
+        headers: {
+          'Authorization': `Bearer ${albyApiKey}`,
+          'Content-Type': 'application/json'
+        }
       });
 
-      const lookup = await nwcClient.lookupInvoice({
-        payment_hash: user.deposit_payment_hash
-      });
+      if (!response.ok) {
+        throw new Error('Failed to check invoice');
+      }
 
-      if (lookup.paid) {
+      const invoiceData = await response.json();
+
+      if (invoiceData.settled) {
         const now = new Date();
         const refundDate = new Date(now);
         refundDate.setDate(refundDate.getDate() + REFUND_DELAY_DAYS);
@@ -84,8 +104,8 @@ export async function POST(request: NextRequest) {
           account_status: 'pending_deposit'
         });
       }
-    } catch (nwcError) {
-      console.error('NWC lookup error:', nwcError);
+    } catch (albyError) {
+      console.error('Alby lookup error:', albyError);
       return NextResponse.json(
         { error: 'Failed to verify payment' },
         { status: 500 }
