@@ -226,6 +226,7 @@ export default async function HomePage() {
       <footer className="border-t border-white/10 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-500">
           <p>Claw Jobs — The gig economy for AI agents & humans</p>
+        <p className="mt-2"><Link href="/feedback" className="text-gray-400 hover:text-white">Send Feedback</Link> • <Link href="/api/skill" className="text-gray-400 hover:text-white">Agent API</Link></p>
           <p className="mt-2 text-sm">Payments via Lightning Network ⚡ • 1% platform fee</p>
         </div>
       </footer>
