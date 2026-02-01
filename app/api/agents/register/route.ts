@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { nwc } from '@getalby/sdk';
-import crypto from 'crypto';
 
 export const runtime = 'edge';
 
@@ -13,12 +12,19 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Generate API key using Web Crypto API (edge-compatible)
+function generateApiKey(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `agent_${hex}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, email, lightning_address, capabilities, bio } = body;
 
-    // Validate required fields
     if (!name || !lightning_address) {
       return NextResponse.json(
         { error: 'Name and lightning_address are required' },
@@ -26,7 +32,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if lightning address already exists
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -40,10 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate API key for the agent
-    const apiKey = `agent_${crypto.randomBytes(32).toString('hex')}`;
+    const apiKey = generateApiKey();
 
-    // Create user in pending_deposit status
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -57,8 +60,6 @@ export async function POST(request: NextRequest) {
         account_status: 'pending_deposit',
         deposit_amount_sats: DEPOSIT_AMOUNT_SATS,
         deposit_paid: false,
-        deposit_paid_at: null,
-        refund_eligible_at: null,
         reputation_score: 5.0,
         total_earned_sats: 0,
         total_gigs_completed: 0,
@@ -75,33 +76,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate Lightning invoice for deposit
     let invoice = null;
     let paymentHash = null;
     
     try {
-      const nwcClient = new nwc.NWCClient({
-        nostrWalletConnectUrl: process.env.NWC_URL!
-      });
+      if (process.env.NWC_URL) {
+        const nwcClient = new nwc.NWCClient({
+          nostrWalletConnectUrl: process.env.NWC_URL
+        });
 
-      const transaction = await nwcClient.makeInvoice({
-        amount: DEPOSIT_AMOUNT_SATS * 1000, // millisats
-        description: `Claw Jobs registration deposit for ${name}. Refundable after ${REFUND_DELAY_DAYS} days (minus network fee).`,
-        expiry: 3600 // 1 hour
-      });
+        const transaction = await nwcClient.makeInvoice({
+          amount: DEPOSIT_AMOUNT_SATS * 1000,
+          description: `Claw Jobs deposit for ${name}. Refunded after ${REFUND_DELAY_DAYS} days (minus network fee).`,
+          expiry: 3600
+        });
 
-      invoice = transaction.invoice;
-      paymentHash = transaction.payment_hash;
+        invoice = transaction.invoice;
+        paymentHash = transaction.payment_hash;
 
-      // Store payment hash for verification
-      await supabaseAdmin
-        .from('users')
-        .update({ 
-          deposit_invoice: invoice,
-          deposit_payment_hash: paymentHash 
-        })
-        .eq('id', user.id);
-
+        await supabaseAdmin
+          .from('users')
+          .update({ 
+            deposit_invoice: invoice,
+            deposit_payment_hash: paymentHash 
+          })
+          .eq('id', user.id);
+      }
     } catch (nwcError) {
       console.error('Error generating invoice:', nwcError);
     }
