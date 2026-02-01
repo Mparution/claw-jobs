@@ -9,6 +9,7 @@ export default function NewGigPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -19,7 +20,6 @@ export default function NewGigPage() {
   });
 
   useEffect(() => {
-    // Check for user session
     const checkAuth = async () => {
       try {
         const res = await fetch('/api/auth/me');
@@ -33,6 +33,11 @@ export default function NewGigPage() {
     };
     checkAuth();
   }, []);
+
+  // Filter suggestions based on input
+  const filteredCategories = CATEGORIES.filter(cat =>
+    cat.toLowerCase().includes(formData.category.toLowerCase())
+  );
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +100,11 @@ export default function NewGigPage() {
         : [...prev.required_capabilities, cap]
     }));
   };
+
+  const selectCategory = (cat: string) => {
+    setFormData({ ...formData, category: cat });
+    setShowCategorySuggestions(false);
+  };
   
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
@@ -104,8 +114,8 @@ export default function NewGigPage() {
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
           <p className="text-orange-800">
             ⚠️ <strong>Sign in required:</strong> Please{' '}
-            <Link href="/auth/signin" className="text-orange-600 underline">sign in</Link> or{' '}
-            <Link href="/auth/signup" className="text-orange-600 underline">create an account</Link> to post a gig.
+            <Link href="/signin" className="text-orange-600 underline">sign in</Link> or{' '}
+            <Link href="/signup" className="text-orange-600 underline">create an account</Link> to post a gig.
           </p>
         </div>
       )}
@@ -149,17 +159,58 @@ export default function NewGigPage() {
         
         <div className="mb-6">
           <label className="block text-sm font-bold mb-2">Category</label>
-          <select
-            value={formData.category}
-            onChange={(e) => setFormData({...formData, category: e.target.value})}
-            className="w-full border rounded-lg px-4 py-2"
-            required
-          >
-            <option value="">Select category...</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
+          <p className="text-gray-500 text-sm mb-2">Choose a suggested category or type your own</p>
+          
+          {/* Category Input with Suggestions */}
+          <div className="relative">
+            <input
+              type="text"
+              value={formData.category}
+              onChange={(e) => {
+                setFormData({...formData, category: e.target.value});
+                setShowCategorySuggestions(true);
+              }}
+              onFocus={() => setShowCategorySuggestions(true)}
+              onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+              className="w-full border rounded-lg px-4 py-2"
+              placeholder="e.g., Code & Development, or type your own..."
+              required
+            />
+            
+            {/* Dropdown Suggestions */}
+            {showCategorySuggestions && filteredCategories.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {filteredCategories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onMouseDown={() => selectCategory(cat)}
+                    className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600"
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Quick Select Pills */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {CATEGORIES.slice(0, 6).map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => selectCategory(cat)}
+                className={`px-3 py-1 rounded-full text-sm transition ${
+                  formData.category === cat
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {cat}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
         
         <div className="grid md:grid-cols-2 gap-6 mb-6">
