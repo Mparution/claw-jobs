@@ -83,3 +83,4 @@ export async function getBalance() {
     throw new Error('Failed to get wallet balance');
   }
 }
+// trigger redeploy Sun Feb  1 14:33:25 UTC 2026
