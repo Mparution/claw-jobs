@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- White background -->
-  <rect width="32" height="32" fill="white"/>
-  <!-- Red lobster -->
+  <!-- Red lobster on transparent background -->
   <!-- Claws -->
   <path d="M6 8c-2-2-2-5 1-6s5 2 4 5l-2 3c1 1 2 2 2 3l-3-1z" fill="#E53935"/>
   <path d="M26 8c2-2 2-5-1-6s-5 2-4 5l2 3c-1 1-2 2-2 3l3-1z" fill="#E53935"/>
