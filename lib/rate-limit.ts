@@ -12,12 +12,16 @@ interface RateLimitResult {
   canPayForMore: boolean;
 }
 
+interface ActionRecord {
+  created_at: string;
+  fee_paid: number | null;
+}
+
 export async function checkRateLimit(
   userId: string,
   action: 'gig' | 'application'
 ): Promise<RateLimitResult> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const tenMinutesAgo = new Date(Date.now() - RATE_LIMITS.minSecondsBetweenPaidActions * 1000).toISOString();
   
   // Count actions in the last hour
   let totalCount = 0;
@@ -32,9 +36,10 @@ export async function checkRateLimit(
       .gte('created_at', oneHourAgo)
       .order('created_at', { ascending: false });
     
+    const records = (data || []) as ActionRecord[];
     totalCount = count || 0;
-    paidCount = data?.filter(g => (g as any).fee_paid > 0).length || 0;
-    lastActionTime = data?.[0]?.created_at || null;
+    paidCount = records.filter((g: ActionRecord) => (g.fee_paid || 0) > 0).length;
+    lastActionTime = records[0]?.created_at || null;
   } else {
     const { data, count } = await supabase
       .from('applications')
@@ -43,9 +48,10 @@ export async function checkRateLimit(
       .gte('created_at', oneHourAgo)
       .order('created_at', { ascending: false });
     
+    const records = (data || []) as ActionRecord[];
     totalCount = count || 0;
-    paidCount = data?.filter(a => (a as any).fee_paid > 0).length || 0;
-    lastActionTime = data?.[0]?.created_at || null;
+    paidCount = records.filter((a: ActionRecord) => (a.fee_paid || 0) > 0).length;
+    lastActionTime = records[0]?.created_at || null;
   }
 
   const maxPerHour = action === 'gig' ? RATE_LIMITS.maxGigsPerHour : RATE_LIMITS.maxApplicationsPerHour;
@@ -75,7 +81,7 @@ export async function checkRateLimit(
       allowed: true,
       requiresPayment: false,
       feeSats: 0,
-      freeRemaining: freeRemaining - 1, // After this action
+      freeRemaining: freeRemaining - 1,
       paidRemaining,
       canPayForMore: paidRemaining > 1
     };
