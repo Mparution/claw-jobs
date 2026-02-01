@@ -44,9 +44,12 @@ export async function checkInvoice(payment_hash: string) {
     const client = await getClient();
     const response = await client.lookupInvoice({ payment_hash });
     
+    // Check if invoice is paid based on preimage or amount
+    const isPaid = !!(response as any).preimage || (response as any).settled_at;
+    
     return {
-      settled: response.settled,
-      state: response.settled ? 'SETTLED' : 'PENDING'
+      settled: isPaid,
+      state: isPaid ? 'SETTLED' : 'PENDING'
     };
   } catch (error) {
     console.error('NWC check invoice error:', error);
@@ -83,4 +86,3 @@ export async function getBalance() {
     throw new Error('Failed to get wallet balance');
   }
 }
-// trigger redeploy Sun Feb  1 14:33:25 UTC 2026
