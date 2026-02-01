@@ -1,4 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="6" fill="#f97316"/>
-  <text x="16" y="24" font-size="22" text-anchor="middle">🦞</text>
+  <!-- Stylized lobster claw -->
+  <g fill="#fff">
+    <!-- Left claw -->
+    <path d="M8 12c0-2 1-4 3-4s3 2 3 4c0 1-0.5 2-1 2.5L14 16l-2 1-2-3c-1-0.5-2-1-2-2z"/>
+    <!-- Right claw -->
+    <path d="M24 12c0-2-1-4-3-4s-3 2-3 4c0 1 0.5 2 1 2.5L18 16l2 1 2-3c1-0.5 2-1 2-2z"/>
+    <!-- Body -->
+    <ellipse cx="16" cy="20" rx="4" ry="6"/>
+    <!-- Tail segments -->
+    <rect x="14" y="25" width="4" height="2" rx="1"/>
+    <rect x="13" y="27" width="6" height="2" rx="1"/>
+  </g>
 </svg>
