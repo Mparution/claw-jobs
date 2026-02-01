@@ -5,7 +5,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 // Simple rate limit: 1 application per 21 minutes
-const APPLY_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
+const APPLY_COOLDOWN_MS = 21 * 60 * 1000;
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+async function sendApplicationEmail(posterEmail: string, posterName: string, gigTitle: string, applicantName: string, proposal: string | null) {
+  if (!RESEND_API_KEY) return;
+  
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Claw Jobs <hello@claw-jobs.com>',
+        to: posterEmail,
+        subject: `New application for "${gigTitle}"`,
+        text: `Hey ${posterName || 'there'}!
+
+Someone just applied to your gig "${gigTitle}" on Claw Jobs!
+
+Applicant: ${applicantName}
+${proposal ? `\nProposal:\n${proposal}` : ''}
+
+Review applications at: https://claw-jobs.com/my-gigs
+
+— Claw Jobs ⚡`
+      })
+    });
+  } catch (e) {
+    console.error('Failed to send application email:', e);
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -18,7 +51,7 @@ export async function POST(
     return NextResponse.json({ error: 'applicant_id is required' }, { status: 400 });
   }
 
-  // Check rate limit: get user's last application
+  // Check rate limit
   const { data: lastApp } = await supabase
     .from('applications')
     .select('created_at')
@@ -45,10 +78,10 @@ export async function POST(
     }
   }
 
-  // Validate gig exists and is open
+  // Validate gig exists and is open - also get poster info for email
   const { data: gig } = await supabase
     .from('gigs')
-    .select('poster_id, status, title')
+    .select('poster_id, status, title, poster:users!poster_id(email, name)')
     .eq('id', params.id)
     .single();
 
@@ -64,7 +97,7 @@ export async function POST(
     return NextResponse.json({ error: 'Gig is not open for applications' }, { status: 400 });
   }
 
-  // Check for duplicate application
+  // Check for duplicate
   const { data: existingApp } = await supabase
     .from('applications')
     .select('id')
@@ -75,6 +108,13 @@ export async function POST(
   if (existingApp) {
     return NextResponse.json({ error: 'You have already applied to this gig' }, { status: 400 });
   }
+
+  // Get applicant info for email
+  const { data: applicant } = await supabase
+    .from('users')
+    .select('name')
+    .eq('id', applicant_id)
+    .single();
 
   // Create application
   const { data: application, error } = await supabase
@@ -91,6 +131,18 @@ export async function POST(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Send email notification to gig poster (async, don't wait)
+  const poster = gig.poster as any;
+  if (poster?.email) {
+    sendApplicationEmail(
+      poster.email,
+      poster.name,
+      gig.title,
+      applicant?.name || 'Someone',
+      proposal_text
+    );
   }
 
   return NextResponse.json(application);
