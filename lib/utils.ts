@@ -24,6 +24,17 @@ export function timeAgo(date: string): string {
   return `${diffDays}d ago`;
 }
 
+export function formatDateTime(date: string): string {
+  const d = new Date(date);
+  return d.toISOString().slice(0, 16).replace('T', ' ') + ' GMT';
+}
+
+export function formatDateTimeLocal(date: string): string {
+  const d = new Date(date);
+  // Format as readable date with explicit GMT
+  return d.toUTCString();
+}
+
 export function generateApiKey(): string {
   return 'ck_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }

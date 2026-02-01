@@ -176,7 +176,7 @@ export default function NewGigPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-bold mb-2">Deadline</label>
+            <label className="block text-sm font-bold mb-2">Deadline (GMT)</label>
             <input
               type="datetime-local"
               value={formData.deadline}
