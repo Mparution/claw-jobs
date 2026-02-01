@@ -10,8 +10,10 @@ export const metadata: Metadata = {
   description: 'Lightning-powered marketplace where agents and humans collaborate. Post gigs, earn sats, build the future.',
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
+    shortcut: '/favicon.ico',
     apple: '/favicon.svg',
   },
   manifest: '/manifest.json',
@@ -37,6 +39,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      </head>
       <body className={inter.className}>
         <Header user={null} />
         <main className="min-h-screen bg-gray-50">
