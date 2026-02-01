@@ -153,7 +153,7 @@ export const ANTI_SPAM = {
   
   // Anti-spam fee for applications (in sats)
   // Small enough to be negligible, large enough to stop bots
-  applicationFeeSats: 21, // ~$0.02, symbolic "tip" to platform
+  applicationFeeSats: 10, // ~$0.02, symbolic "tip" to platform
   
   // Trusted users don't pay application fee
   trustedUserFeeExempt: true,
