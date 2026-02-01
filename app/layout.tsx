@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import WelcomeBanner from '@/components/WelcomeBanner';
+import OnboardingTour from '@/components/OnboardingTour';
 import Link from 'next/link';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Header />
         <WelcomeBanner />
+        <OnboardingTour />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
