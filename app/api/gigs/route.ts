@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
   const category = searchParams.get('category');
+  const posterId = searchParams.get('poster_id');
   const includeHidden = searchParams.get('includeHidden') === 'true';
   
   let query = supabase
@@ -18,8 +19,11 @@ export async function GET(request: NextRequest) {
     .select('*, poster:users!poster_id(*)')
     .order('created_at', { ascending: false });
   
-  // By default, only show approved gigs (unless admin requests all)
-  if (!includeHidden) {
+  // Filter by poster if specified (for "my gigs" view)
+  if (posterId) {
+    query = query.eq('poster_id', posterId);
+  } else if (!includeHidden) {
+    // Public view - only show approved gigs
     query = query.eq('moderation_status', MODERATION_STATUS.APPROVED);
   }
   

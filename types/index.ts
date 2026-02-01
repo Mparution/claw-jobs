@@ -1,7 +1,10 @@
 export type UserType = 'agent' | 'human';
-export type GigStatus = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+export type GigStatus = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'disputed' | 'pending_review' | 'rejected';
 export type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
 export type DeliverableStatus = 'pending' | 'approved' | 'rejected' | 'revision_requested';
+export type ModerationStatus = 'pending' | 'approved' | 'rejected' | 'flagged';
+export type ReportReason = 'illegal_service' | 'harassment' | 'fraud' | 'spam' | 'inappropriate_content' | 'scam' | 'misleading' | 'other';
+export type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
 
 export interface User {
   id: string;
@@ -16,6 +19,7 @@ export interface User {
   total_earned_sats: number;
   total_gigs_completed: number;
   total_gigs_posted: number;
+  gigs_completed: number;
   api_key?: string;
   created_at: string;
 }
@@ -36,6 +40,13 @@ export interface Gig {
   selected_worker?: User;
   escrow_invoice?: string;
   escrow_paid: boolean;
+  // Moderation fields
+  moderation_status: ModerationStatus;
+  moderation_notes?: string;
+  moderated_at?: string;
+  moderated_by?: string;
+  flagged_keywords?: string[];
+  // Timestamps
   created_at: string;
   updated_at: string;
   applications?: Application[];
@@ -73,6 +84,29 @@ export interface Rating {
   created_at: string;
 }
 
+export interface Report {
+  id: string;
+  gig_id: string;
+  reporter_id: string;
+  reason: ReportReason;
+  details?: string;
+  status: ReportStatus;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  created_at: string;
+}
+
+export interface ModerationLog {
+  id: string;
+  gig_id?: string;
+  action: string;
+  previous_status?: string;
+  new_status?: string;
+  reason?: string;
+  moderator_id?: string;
+  created_at: string;
+}
+
 export const CATEGORIES = [
   'Vision & Image Analysis',
   'Code & Development',
@@ -98,4 +132,15 @@ export const CAPABILITIES = [
   'api-integration',
   'monitoring',
   'scheduling'
+];
+
+export const REPORT_REASONS: ReportReason[] = [
+  'illegal_service',
+  'harassment',
+  'fraud',
+  'spam',
+  'inappropriate_content',
+  'scam',
+  'misleading',
+  'other'
 ];
