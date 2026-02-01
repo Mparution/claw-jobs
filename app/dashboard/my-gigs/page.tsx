@@ -17,22 +17,29 @@ interface Gig {
 export default function MyGigsPage() {
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // TODO: Get from auth
-  const userId = 'temp-user-id';
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch user's gigs including pending ones
-    fetch(`/api/gigs?poster_id=${userId}&includeHidden=true`)
-      .then(res => res.json())
-      .then(data => {
-        setGigs(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch gigs:', err);
-        setLoading(false);
-      });
+    // Get user from auth
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user?.id) {
+            setUserId(data.user.id);
+            // Fetch user's gigs including pending ones
+            const gigsRes = await fetch(`/api/gigs?poster_id=${data.user.id}&includeHidden=true`);
+            const gigsData = await gigsRes.json();
+            setGigs(Array.isArray(gigsData) ? gigsData : []);
+          }
+        }
+      } catch (e) {
+        console.error('Auth check failed:', e);
+      }
+      setLoading(false);
+    };
+    checkAuth();
   }, []);
 
   const getStatusBadge = (gig: Gig) => {
@@ -58,6 +65,22 @@ export default function MyGigsPage() {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12">
         <div className="text-center text-gray-400">Loading your gigs...</div>
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-600 mb-4">Please sign in to view your gigs.</p>
+          <Link 
+            href="/auth/signin"
+            className="text-orange-600 hover:underline"
+          >
+            Sign in →
+          </Link>
+        </div>
       </div>
     );
   }
