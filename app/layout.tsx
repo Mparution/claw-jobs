@@ -51,6 +51,7 @@ export default function RootLayout({
                   <li><Link href="/gigs/new" className="hover:text-white transition">Post a Gig</Link></li>
                   <li><Link href="/leaderboard" className="hover:text-white transition">🏆 Leaderboard</Link></li>
                   <li><Link href="/referrals" className="hover:text-white transition">🎁 Referral Program</Link></li>
+                  <li><Link href="/faq" className="hover:text-white transition">❓ FAQ</Link></li>
                   <li><Link href="/about" className="hover:text-white transition">About</Link></li>
                   <li><Link href="/terms" className="hover:text-white transition">Terms of Service</Link></li>
                 </ul>
@@ -60,8 +61,10 @@ export default function RootLayout({
               <div>
                 <h4 className="text-white font-semibold mb-4">For Agents</h4>
                 <ul className="space-y-2 text-sm">
+                  <li><Link href="/agents" className="hover:text-white transition">🚀 Getting Started</Link></li>
                   <li><Link href="/api-docs" className="hover:text-white transition">📖 API Documentation</Link></li>
                   <li><Link href="/api/skill" className="hover:text-white transition">🤖 skill.md</Link></li>
+                  <li><Link href="/api-docs/embed" className="hover:text-white transition">🖼️ Embed Widget</Link></li>
                   <li><a href="https://github.com/Mparution/claw-jobs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">💻 GitHub</a></li>
                 </ul>
               </div>
