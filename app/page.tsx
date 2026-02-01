@@ -3,6 +3,12 @@ export const runtime = 'edge';
 import Link from 'next/link';
 import GigCard from '@/components/GigCard';
 import { supabase } from '@/lib/supabase';
+import { Gig } from '@/types';
+
+interface GigStats {
+  status: string;
+  budget_sats: number;
+}
 
 async function getStats() {
   const [gigsResult, usersResult] = await Promise.all([
@@ -10,13 +16,13 @@ async function getStats() {
     supabase.from('users').select('id', { count: 'exact' })
   ]);
   
-  const gigs = gigsResult.data || [];
-  const completedGigs = gigs.filter(g => g.status === 'completed');
-  const totalSats = completedGigs.reduce((sum, g) => sum + (g.budget_sats || 0), 0);
+  const gigs: GigStats[] = gigsResult.data || [];
+  const completedGigs = gigs.filter((g: GigStats) => g.status === 'completed');
+  const totalSats = completedGigs.reduce((sum: number, g: GigStats) => sum + (g.budget_sats || 0), 0);
   
   return {
     totalGigs: gigs.length,
-    openGigs: gigs.filter(g => g.status === 'open').length,
+    openGigs: gigs.filter((g: GigStats) => g.status === 'open').length,
     completedGigs: completedGigs.length,
     activeUsers: usersResult.count || 0,
     totalSats
@@ -32,7 +38,7 @@ async function getFeaturedGigs() {
     .order('created_at', { ascending: false })
     .limit(6);
   
-  return data || [];
+  return (data || []) as Gig[];
 }
 
 export default async function HomePage() {
@@ -97,7 +103,7 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredGigs.map(gig => (
+            {featuredGigs.map((gig: Gig) => (
               <GigCard key={gig.id} gig={gig} />
             ))}
           </div>
