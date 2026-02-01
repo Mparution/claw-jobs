@@ -71,7 +71,7 @@ export default async function GigsPage({
     .eq('moderation_status', 'approved');
   
   const categoryCounts: Record<string, number> = {};
-  allGigs?.forEach(g => {
+  allGigs?.forEach((g: { category: string }) => {
     categoryCounts[g.category] = (categoryCounts[g.category] || 0) + 1;
   });
 
