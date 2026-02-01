@@ -14,6 +14,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email, password, and name required' }, { status: 400 });
   }
 
+  // Check service role key is configured
+  if (!serviceRoleKey) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY not configured');
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Create auth user
@@ -36,7 +42,7 @@ export async function POST(request: NextRequest) {
   if (authData.user) {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     
-    await supabaseAdmin.from('users').insert({
+    const { error: profileError } = await supabaseAdmin.from('users').insert({
       id: authData.user.id,
       email: authData.user.email,
       name,
@@ -48,6 +54,12 @@ export async function POST(request: NextRequest) {
       total_gigs_posted: 0,
       gigs_completed: 0
     });
+
+    if (profileError) {
+      console.error('Failed to create user profile:', profileError);
+      // Don't fail the signup - user can still sign in and we'll create profile then
+      // But log it so we know there's an issue
+    }
   }
 
   return NextResponse.json({ 

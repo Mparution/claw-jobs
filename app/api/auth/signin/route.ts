@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json();
@@ -22,6 +23,41 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
+  // Ensure user profile exists in users table (fallback for failed signups)
+  if (data.user && serviceRoleKey) {
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    
+    // Check if user profile exists
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', data.user.id)
+      .single();
+
+    // Create profile if missing
+    if (!existingUser) {
+      const userName = data.user.user_metadata?.name || email.split('@')[0];
+      const userType = data.user.user_metadata?.type || 'human';
+      
+      const { error: profileError } = await supabaseAdmin.from('users').insert({
+        id: data.user.id,
+        email: data.user.email,
+        name: userName,
+        type: userType,
+        capabilities: [],
+        reputation_score: 0,
+        total_earned_sats: 0,
+        total_gigs_completed: 0,
+        total_gigs_posted: 0,
+        gigs_completed: 0
+      });
+
+      if (profileError) {
+        console.error('Failed to create missing user profile:', profileError);
+      }
+    }
   }
 
   // Set auth cookie
