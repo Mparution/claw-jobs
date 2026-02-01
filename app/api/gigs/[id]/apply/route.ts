@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkUserRateLimit } from '@/lib/rate-limit';
+import { createInvoice, checkInvoice } from '@/lib/lightning';
 import { ANTI_SPAM } from '@/lib/constants';
 
 export async function POST(
@@ -11,10 +12,10 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const body = await request.json();
-  const { applicant_id, proposal_text, proposed_price_sats, fee_paid } = body;
+  const { applicant_id, proposal_text, proposed_price_sats, fee_payment_hash } = body;
   
-  if (!applicant_id || !proposal_text || !proposed_price_sats) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  if (!applicant_id) {
+    return NextResponse.json({ error: 'applicant_id is required' }, { status: 400 });
   }
 
   // Check rate limit
@@ -28,16 +29,10 @@ export async function POST(
     }, { status: 429 });
   }
 
-  // Check if anti-spam fee is required (for new users)
-  // Note: In a full implementation, this would verify a Lightning payment
-  // For now, we'll allow applications but mark trusted status
-  const requiresFee = !rateCheck.isTrusted;
-  const feeSats = requiresFee ? ANTI_SPAM.applicationFeeSats : 0;
-
-  // Check user isn't applying to their own gig
+  // Check if user isn't applying to their own gig
   const { data: gig } = await supabase
     .from('gigs')
-    .select('poster_id, status')
+    .select('poster_id, status, title')
     .eq('id', params.id)
     .single();
 
@@ -64,6 +59,54 @@ export async function POST(
   if (existingApp) {
     return NextResponse.json({ error: 'You have already applied to this gig' }, { status: 400 });
   }
+
+  // Check if anti-spam fee is required (for new users)
+  const requiresFee = !rateCheck.isTrusted;
+  const feeSats = ANTI_SPAM.applicationFeeSats;
+
+  // If fee required and no payment hash provided, return invoice
+  if (requiresFee && !fee_payment_hash) {
+    try {
+      const invoice = await createInvoice(
+        feeSats, 
+        `Claw Jobs: Application fee for "${gig.title.substring(0, 30)}..."`
+      );
+      
+      return NextResponse.json({
+        requires_fee: true,
+        fee_sats: feeSats,
+        fee_invoice: invoice.invoice,
+        fee_payment_hash: invoice.payment_hash,
+        message: `New users pay a ${feeSats} sat anti-spam fee. Pay the invoice and resubmit with fee_payment_hash.`,
+        hint: 'Complete 3 gigs to become trusted and skip this fee!'
+      }, { status: 402 }); // 402 Payment Required
+    } catch (error) {
+      console.error('Failed to create fee invoice:', error);
+      return NextResponse.json({ error: 'Failed to create payment invoice' }, { status: 500 });
+    }
+  }
+
+  // If fee required, verify payment
+  if (requiresFee && fee_payment_hash) {
+    try {
+      const paymentStatus = await checkInvoice(fee_payment_hash);
+      if (!paymentStatus.settled) {
+        return NextResponse.json({ 
+          error: 'Fee not paid yet',
+          fee_payment_hash,
+          hint: 'Pay the invoice first, then resubmit'
+        }, { status: 402 });
+      }
+    } catch (error) {
+      console.error('Failed to verify payment:', error);
+      return NextResponse.json({ error: 'Failed to verify payment' }, { status: 500 });
+    }
+  }
+
+  // Now we can proceed with the application
+  if (!proposal_text || !proposed_price_sats) {
+    return NextResponse.json({ error: 'Missing proposal_text or proposed_price_sats' }, { status: 400 });
+  }
   
   const { data, error } = await supabase
     .from('applications')
@@ -72,7 +115,9 @@ export async function POST(
       applicant_id,
       proposal_text,
       proposed_price_sats,
-      status: 'pending'
+      status: 'pending',
+      fee_paid: requiresFee ? feeSats : 0,
+      fee_payment_hash: fee_payment_hash || null
     })
     .select('*, applicant:users!applicant_id(*)')
     .single();
@@ -83,12 +128,10 @@ export async function POST(
   
   return NextResponse.json({
     ...data,
+    message: 'Application submitted successfully!',
     rateLimit: {
       isTrusted: rateCheck.isTrusted,
-      feeSats: feeSats,
-      feeNote: requiresFee 
-        ? `New users: ${feeSats} sat fee helps prevent spam. Complete ${ANTI_SPAM.trustedGigsThreshold} gigs to become trusted!`
-        : 'Trusted user - no application fee'
+      feePaid: requiresFee ? feeSats : 0
     }
   });
 }
