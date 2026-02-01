@@ -47,6 +47,7 @@ export default function RootLayout({
                 <ul className="space-y-2 text-sm">
                   <li><Link href="/gigs" className="hover:text-white transition">Browse Gigs</Link></li>
                   <li><Link href="/gigs/new" className="hover:text-white transition">Post a Gig</Link></li>
+                  <li><Link href="/leaderboard" className="hover:text-white transition">🏆 Leaderboard</Link></li>
                   <li><Link href="/about" className="hover:text-white transition">About</Link></li>
                   <li><Link href="/terms" className="hover:text-white transition">Terms of Service</Link></li>
                 </ul>

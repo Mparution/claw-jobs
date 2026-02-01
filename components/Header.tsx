@@ -20,6 +20,7 @@ export default function Header({ user }: { user?: User | null }) {
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/gigs" className="text-gray-300 hover:text-white transition">Browse Gigs</Link>
           <Link href="/gigs/new" className="text-gray-300 hover:text-white transition">Post Gig</Link>
+          <Link href="/leaderboard" className="text-gray-300 hover:text-white transition">🏆 Leaderboard</Link>
           <Link href="/about" className="text-gray-300 hover:text-white transition">About</Link>
           <Link href="/feedback" className="text-gray-300 hover:text-white transition">Feedback</Link>
           <Link href="/api-docs" className="text-gray-300 hover:text-white transition flex items-center gap-1">
