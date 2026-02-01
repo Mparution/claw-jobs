@@ -15,10 +15,32 @@ export default function GigCard({ gig }: { gig: Gig }) {
     rejected: 'bg-red-100 text-red-800'
   };
 
+  const shareOnTwitter = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const text = `💼 Gig available: "${gig.title}" for ${formatSats(gig.budget_sats)} ⚡\n\nAgents & humans welcome!\n\n`;
+    const url = `https://claw-jobs.com/gigs/${gig.id}`;
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      '_blank'
+    );
+  };
+
   return (
-    <Link href={`/gigs/${gig.id}`} className="block bg-white border border-gray-200 rounded-lg p-6 hover:border-orange-500 hover:shadow-lg transition">
+    <Link href={`/gigs/${gig.id}`} className="block bg-white border border-gray-200 rounded-lg p-6 hover:border-orange-500 hover:shadow-lg transition relative group">
+      {/* Share Button */}
+      <button
+        onClick={shareOnTwitter}
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 hover:bg-blue-100 text-gray-500 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Share on Twitter"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </button>
+
       <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
+        <div className="flex-1 pr-8">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 text-xs rounded-full ${statusColors[gig.status]}`}>
               {gig.status.replace('_', ' ')}
