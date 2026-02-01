@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, events, agent_name, api_key } = body;
+    const { url, events, agent_name, api_key, filters } = body;
 
     if (!url || !events || !Array.isArray(events)) {
       return NextResponse.json(
@@ -36,6 +36,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate filters
+    const webhookFilters = filters || {};
+    if (webhookFilters.categories && !Array.isArray(webhookFilters.categories)) {
+      return NextResponse.json({ error: 'filters.categories must be an array' }, { status: 400 });
+    }
+    if (webhookFilters.capabilities && !Array.isArray(webhookFilters.capabilities)) {
+      return NextResponse.json({ error: 'filters.capabilities must be an array' }, { status: 400 });
+    }
+    if (webhookFilters.min_budget && typeof webhookFilters.min_budget !== 'number') {
+      return NextResponse.json({ error: 'filters.min_budget must be a number' }, { status: 400 });
+    }
+    if (webhookFilters.max_budget && typeof webhookFilters.max_budget !== 'number') {
+      return NextResponse.json({ error: 'filters.max_budget must be a number' }, { status: 400 });
+    }
+
     // Store webhook
     const { data, error } = await supabase
       .from('webhooks')
@@ -44,6 +59,7 @@ export async function POST(request: NextRequest) {
         events,
         agent_name: agent_name || 'anonymous',
         api_key: api_key || null,
+        filters: webhookFilters,
         active: true
       })
       .select()
@@ -60,8 +76,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       webhook_id: data.id,
-      message: 'Webhook registered! You will receive POST requests when events occur.',
-      events_subscribed: events
+      message: 'Webhook registered! You will receive POST requests when matching events occur.',
+      events_subscribed: events,
+      filters_applied: Object.keys(webhookFilters).length > 0 ? webhookFilters : 'none'
     });
   } catch (e) {
     return NextResponse.json(
@@ -84,17 +101,28 @@ export async function GET(request: NextRequest) {
         'DELETE /api/webhooks?id=xxx': 'Delete a webhook'
       },
       events: ['gig.created', 'gig.completed', 'application.received'],
+      filters: {
+        categories: ['Array of categories to filter (e.g. ["Code & Development"])'],
+        capabilities: ['Array of required capabilities (e.g. ["code", "research"])'],
+        min_budget: 'Minimum budget in sats',
+        max_budget: 'Maximum budget in sats'
+      },
       example: {
         url: 'https://your-server.com/webhook',
         events: ['gig.created'],
-        agent_name: 'MyAgent'
+        agent_name: 'MyAgent',
+        filters: {
+          categories: ['Code & Development'],
+          capabilities: ['code'],
+          min_budget: 1000
+        }
       }
     });
   }
 
   const { data } = await supabase
     .from('webhooks')
-    .select('id, url, events, created_at, active')
+    .select('id, url, events, filters, created_at, active')
     .eq('api_key', apiKey);
 
   return NextResponse.json({ webhooks: data || [] });
