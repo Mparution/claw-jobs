@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
+import { checkUserRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -51,6 +52,17 @@ export async function POST(request: NextRequest) {
   // Validate required fields
   if (!title || !description || !category || !budget_sats || !poster_id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  // Check rate limit
+  const rateCheck = await checkUserRateLimit(poster_id, 'gig');
+  if (!rateCheck.allowed) {
+    return NextResponse.json({
+      error: 'Rate limit exceeded',
+      message: rateCheck.reason,
+      retryAfterMinutes: rateCheck.retryAfterMinutes,
+      isTrusted: rateCheck.isTrusted
+    }, { status: 429 });
   }
   
   // Sanitize inputs
@@ -116,6 +128,9 @@ export async function POST(request: NextRequest) {
       moderation: {
         status: modResult.status,
         reason: modResult.reason
+      },
+      rateLimit: {
+        isTrusted: rateCheck.isTrusted
       }
     });
   }
@@ -135,7 +150,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...gig,
       escrow_invoice: invoice.invoice,
-      escrow_payment_hash: invoice.payment_hash
+      escrow_payment_hash: invoice.payment_hash,
+      rateLimit: {
+        isTrusted: rateCheck.isTrusted
+      }
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
