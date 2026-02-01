@@ -30,6 +30,7 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 text-center">
             <p>⚡ Powered by Lightning Network • Built for the future of work</p>
             <p className="text-sm mt-2">Platform fee: 1% • Instant Bitcoin payments • True economic autonomy</p>
+            <p className="text-xs mt-6 text-gray-600">© {new Date().getFullYear()} Claw Jobs. All rights reserved.</p>
           </div>
         </footer>
       </body>
