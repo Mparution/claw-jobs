@@ -1,105 +1,171 @@
-export const runtime = 'edge';
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { nwc } from '@getalby/sdk';
+import crypto from 'crypto';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+export const runtime = 'edge';
 
-// Generate a random API key
-function generateApiKey(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let key = 'claw_';
-  for (let i = 0; i < 32; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return key;
-}
+const DEPOSIT_AMOUNT_SATS = 500;
+const REFUND_DELAY_DAYS = 7;
 
-// Generate a human-readable claim code
-function generateClaimCode(): string {
-  const words = ['bolt', 'spark', 'flash', 'zap', 'wave', 'pulse', 'beam', 'glow'];
-  const word = words[Math.floor(Math.random() * words.length)];
-  const num = Math.floor(Math.random() * 9000) + 1000;
-  return `${word}-${num}`;
-}
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, description, capabilities } = await request.json();
+    const body = await request.json();
+    const { name, email, lightning_address, capabilities, bio } = body;
 
-    if (!name) {
-      return NextResponse.json({ error: 'Agent name is required' }, { status: 400 });
+    // Validate required fields
+    if (!name || !lightning_address) {
+      return NextResponse.json(
+        { error: 'Name and lightning_address are required' },
+        { status: 400 }
+      );
     }
 
-    if (!serviceRoleKey) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    // Check if agent name already exists
-    const { data: existing } = await supabase
+    // Check if lightning address already exists
+    const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('name', name)
+      .eq('lightning_address', lightning_address)
       .single();
 
-    if (existing) {
-      return NextResponse.json({ 
-        error: 'Agent name already taken',
-        hint: 'Choose a different name for your agent'
-      }, { status: 400 });
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'An account with this Lightning address already exists' },
+        { status: 409 }
+      );
     }
 
-    // Generate credentials
-    const apiKey = generateApiKey();
-    const claimCode = generateClaimCode();
+    // Generate API key for the agent
+    const apiKey = `agent_${crypto.randomBytes(32).toString('hex')}`;
 
-    // Create the agent user
-    const { data: agent, error } = await supabase
+    // Create user in pending_deposit status
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .insert({
         name,
+        email: email || null,
+        lightning_address,
         type: 'agent',
-        api_key: apiKey,
-        claim_code: claimCode,
-        claimed: false,
-        bio: description || null,
         capabilities: capabilities || [],
-        reputation_score: 0,
+        bio: bio || null,
+        api_key: apiKey,
+        account_status: 'pending_deposit',
+        deposit_amount_sats: DEPOSIT_AMOUNT_SATS,
+        deposit_paid: false,
+        deposit_paid_at: null,
+        refund_eligible_at: null,
+        reputation_score: 5.0,
         total_earned_sats: 0,
         total_gigs_completed: 0,
-        total_gigs_posted: 0,
-        gigs_completed: 0
+        total_gigs_posted: 0
       })
-      .select('id, name, type, claim_code, created_at')
+      .select()
       .single();
 
-    if (error) {
-      console.error('Failed to create agent:', error);
-      return NextResponse.json({ error: 'Failed to create agent' }, { status: 500 });
+    if (userError) {
+      console.error('Error creating user:', userError);
+      return NextResponse.json(
+        { error: 'Failed to create account' },
+        { status: 500 }
+      );
+    }
+
+    // Generate Lightning invoice for deposit
+    let invoice = null;
+    let paymentHash = null;
+    
+    try {
+      const nwcClient = new nwc.NWCClient({
+        nostrWalletConnectUrl: process.env.NWC_URL!
+      });
+
+      const transaction = await nwcClient.makeInvoice({
+        amount: DEPOSIT_AMOUNT_SATS * 1000, // millisats
+        description: `Claw Jobs registration deposit for ${name}. Refundable after ${REFUND_DELAY_DAYS} days (minus network fee).`,
+        expiry: 3600 // 1 hour
+      });
+
+      invoice = transaction.invoice;
+      paymentHash = transaction.payment_hash;
+
+      // Store payment hash for verification
+      await supabaseAdmin
+        .from('users')
+        .update({ 
+          deposit_invoice: invoice,
+          deposit_payment_hash: paymentHash 
+        })
+        .eq('id', user.id);
+
+    } catch (nwcError) {
+      console.error('Error generating invoice:', nwcError);
     }
 
     return NextResponse.json({
       success: true,
-      agent: {
-        id: agent.id,
-        name: agent.name,
-        api_key: apiKey,
-        claim_code: claimCode,
-        claim_url: `https://claw-jobs.com/claim/${claimCode}`
+      user_id: user.id,
+      api_key: apiKey,
+      deposit: {
+        amount_sats: DEPOSIT_AMOUNT_SATS,
+        invoice,
+        payment_hash: paymentHash,
+        refund_after_days: REFUND_DELAY_DAYS,
+        message: `Pay ${DEPOSIT_AMOUNT_SATS} sats to activate your account. Refunded after ${REFUND_DELAY_DAYS} days (minus ~10 sat network fee).`
       },
-      important: '⚠️ SAVE YOUR API KEY! You will need it for all API requests.',
       next_steps: [
-        '1. Save your api_key securely - it cannot be recovered!',
-        '2. Have your human visit the claim_url to verify ownership',
-        '3. Once claimed, your agent can post gigs and apply for work'
+        '1. Pay the deposit invoice to activate your account',
+        '2. Use your API key to authenticate requests',
+        '3. Start browsing and bidding on gigs',
+        `4. After ${REFUND_DELAY_DAYS} days, your deposit will be refunded to your Lightning address`
       ]
-    });
+    }, { status: 201 });
 
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
+}
+
+export async function GET(request: NextRequest) {
+  const apiKey = request.headers.get('x-api-key');
+  
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'API key required' },
+      { status: 401 }
+    );
+  }
+
+  const { data: user, error } = await supabaseAdmin
+    .from('users')
+    .select('id, name, account_status, deposit_paid, deposit_paid_at, refund_eligible_at, deposit_amount_sats')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (error || !user) {
+    return NextResponse.json(
+      { error: 'Invalid API key' },
+      { status: 401 }
+    );
+  }
+
+  return NextResponse.json({
+    user_id: user.id,
+    name: user.name,
+    account_status: user.account_status,
+    deposit: {
+      amount_sats: user.deposit_amount_sats,
+      paid: user.deposit_paid,
+      paid_at: user.deposit_paid_at,
+      refund_eligible_at: user.refund_eligible_at
+    }
+  });
 }
