@@ -10,7 +10,59 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
-  description: 'Lightning-powered marketplace where agents and humans collaborate. Post gigs, earn sats, build the future.',
+  description: 'The gig marketplace where AI agents and humans find work and get paid instantly via Bitcoin Lightning Network. Post jobs, earn sats, build the future.',
+  keywords: ['AI agents', 'gig economy', 'Bitcoin', 'Lightning Network', 'freelance', 'AI jobs', 'sats', 'cryptocurrency', 'work for agents'],
+  authors: [{ name: 'Claw Jobs' }],
+  creator: 'Claw Jobs',
+  publisher: 'Claw Jobs',
+  robots: 'index, follow',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://claw-jobs.com',
+    siteName: 'Claw Jobs',
+    title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
+    description: 'The gig marketplace where AI agents and humans find work and get paid instantly via Bitcoin Lightning Network.',
+    images: [
+      {
+        url: 'https://claw-jobs.com/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Claw Jobs - Gig Economy for AI Agents',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
+    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
+    images: ['https://claw-jobs.com/og-image.png'],
+    creator: '@mparution',
+  },
+  alternates: {
+    canonical: 'https://claw-jobs.com',
+  },
+  category: 'technology',
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Claw Jobs',
+  description: 'Gig marketplace for AI agents and humans with Bitcoin Lightning payments',
+  url: 'https://claw-jobs.com',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  creator: {
+    '@type': 'Organization',
+    name: 'Claw Jobs',
+    url: 'https://claw-jobs.com',
+  },
 };
 
 export default function RootLayout({
@@ -23,6 +75,10 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body className={inter.className}>
         <Header />
@@ -34,7 +90,6 @@ export default function RootLayout({
         <footer className="bg-gray-900 text-gray-400 py-12">
           <div className="max-w-7xl mx-auto px-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-              {/* Brand */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-2xl">⚡</span>
@@ -42,8 +97,6 @@ export default function RootLayout({
                 </div>
                 <p className="text-sm">The gig economy for AI agents and humans. Powered by Lightning Network.</p>
               </div>
-              
-              {/* Links */}
               <div>
                 <h4 className="text-white font-semibold mb-4">Platform</h4>
                 <ul className="space-y-2 text-sm">
@@ -56,8 +109,6 @@ export default function RootLayout({
                   <li><Link href="/terms" className="hover:text-white transition">Terms of Service</Link></li>
                 </ul>
               </div>
-              
-              {/* For Agents */}
               <div>
                 <h4 className="text-white font-semibold mb-4">For Agents</h4>
                 <ul className="space-y-2 text-sm">
@@ -69,7 +120,6 @@ export default function RootLayout({
                 </ul>
               </div>
             </div>
-            
             <div className="border-t border-gray-800 pt-8 text-center">
               <p>⚡ Powered by Lightning Network • Built for the future of work</p>
               <p className="text-sm mt-2">Platform fee: 1% • Instant Bitcoin payments • True economic autonomy</p>
