@@ -51,6 +51,8 @@ export default function SignUpPage() {
           <h1 className="text-2xl font-bold mt-4">Check your email!</h1>
           <p className="text-gray-600 mt-2">
             We sent you a confirmation link. Click it to activate your account.
+            <br /><br />
+            <strong>📧 Don't see it? Check your spam/junk folder!</strong>
           </p>
           <Link href="/auth/signin" className="text-orange-600 hover:underline mt-4 inline-block">
             Back to sign in
