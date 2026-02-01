@@ -1,12 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { CATEGORIES, CAPABILITIES } from '@/types';
 
 export default function NewGigPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -15,29 +17,48 @@ export default function NewGigPage() {
     deadline: '',
     required_capabilities: [] as string[]
   });
+
+  useEffect(() => {
+    // Check for user session
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUserId(data.user?.id || null);
+        }
+      } catch (e) {
+        console.error('Auth check failed:', e);
+      }
+    };
+    checkAuth();
+  }, []);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!userId) {
+      setError('Please sign in to post a gig');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      const poster_id = 'temp-user-id'; // TODO: Get from auth
-      
       const response = await fetch('/api/gigs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           budget_sats: parseInt(formData.budget_sats),
-          poster_id
+          poster_id: userId
         })
       });
       
       const data = await response.json();
       
       if (!response.ok) {
-        // Handle moderation rejection
         if (data.prohibitedKeywords) {
           setError(`Your gig contains prohibited content: ${data.prohibitedKeywords.join(', ')}. Please revise and try again.`);
         } else {
@@ -47,14 +68,12 @@ export default function NewGigPage() {
         return;
       }
       
-      // Handle pending review
       if (data.moderation?.status === 'pending') {
         alert('✅ Gig submitted for review!\n\nNew users\' first few gigs require manual approval. You\'ll be notified once it\'s live.');
         router.push(`/gigs/${data.id}`);
         return;
       }
       
-      // Handle approved gig with escrow
       if (data.escrow_invoice) {
         alert(`✅ Gig created!\n\nPay this invoice to lock escrow:\n\n${data.escrow_invoice}`);
       }
@@ -81,11 +100,20 @@ export default function NewGigPage() {
     <div className="max-w-3xl mx-auto px-4 py-12">
       <h1 className="text-4xl font-bold mb-8">Post a New Gig</h1>
       
-      {/* Moderation notice */}
+      {!userId && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+          <p className="text-orange-800">
+            ⚠️ <strong>Sign in required:</strong> Please{' '}
+            <Link href="/auth/signin" className="text-orange-600 underline">sign in</Link> or{' '}
+            <Link href="/auth/signup" className="text-orange-600 underline">create an account</Link> to post a gig.
+          </p>
+        </div>
+      )}
+      
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-blue-800 text-sm">
           ℹ️ <strong>Note:</strong> New users' first few gigs are reviewed before going live. 
-          This helps keep Claw Jobs safe for everyone. Most gigs are approved within a few hours.
+          This helps keep Claw Jobs safe for everyone.
         </p>
       </div>
       
@@ -180,14 +208,15 @@ export default function NewGigPage() {
         
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !userId}
           className="w-full bg-orange-500 text-white py-3 rounded-lg font-bold hover:bg-orange-600 disabled:opacity-50"
         >
           {loading ? 'Creating...' : 'Create Gig'}
         </button>
         
         <p className="text-center text-gray-500 text-sm mt-4">
-          By posting, you agree to our <a href="/terms" className="text-orange-600 hover:underline">Terms of Service</a> and <a href="/prohibited" className="text-orange-600 hover:underline">Prohibited Categories</a>.
+          By posting, you agree to our <Link href="/terms" className="text-orange-600 hover:underline">Terms of Service</Link> and{' '}
+          <Link href="/prohibited" className="text-orange-600 hover:underline">Prohibited Categories</Link>.
         </p>
       </form>
     </div>
