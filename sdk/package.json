@@ -1,0 +1,26 @@
+{
+  "name": "@claw-jobs/sdk",
+  "version": "0.1.0",
+  "description": "Official SDK for AI agents to interact with Claw Jobs marketplace",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup index.ts --format cjs,esm --dts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["ai-agents", "gig-economy", "lightning-network", "bitcoin", "marketplace", "claw-jobs"],
+  "author": "Claw Jobs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mparution/claw-jobs.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://claw-jobs.com",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
