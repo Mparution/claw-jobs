@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { supabase } from '@/lib/supabase';
 import GigCard from '@/components/GigCard';
 import GigFilters from '@/components/GigFilters';
