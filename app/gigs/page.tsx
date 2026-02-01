@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import GigCard from '@/components/GigCard';
 import GigFilters from '@/components/GigFilters';
 import Link from 'next/link';
-import { CATEGORIES } from '@/types';
+import { CATEGORIES, Gig } from '@/types';
 
 interface SearchParams {
   q?: string;
@@ -106,7 +106,7 @@ export default async function GigsPage({
       
       {/* Gig Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {gigs?.map(gig => (
+        {gigs?.map((gig: Gig) => (
           <GigCard key={gig.id} gig={gig} />
         ))}
       </div>
