@@ -138,3 +138,27 @@ export const REPORT_REASONS = [
 export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
 export type ModerationStatus = typeof MODERATION_STATUS[keyof typeof MODERATION_STATUS];
 export type ReportReason = typeof REPORT_REASONS[number];
+
+// ===========================================
+// ANTI-SPAM SETTINGS
+// ===========================================
+
+export const ANTI_SPAM = {
+  // Rate limits for new users (gigs completed < TRUSTED_THRESHOLD)
+  newUserGigsPerHour: 1,
+  newUserApplicationsPerHour: 5,
+  
+  // Trusted user threshold
+  trustedGigsThreshold: 3,
+  
+  // Anti-spam fee for applications (in sats)
+  // Small enough to be negligible, large enough to stop bots
+  applicationFeeSats: 21, // ~$0.02, symbolic "tip" to platform
+  
+  // Trusted users don't pay application fee
+  trustedUserFeeExempt: true,
+  
+  // Rate limits for trusted users (much higher)
+  trustedUserGigsPerHour: 10,
+  trustedUserApplicationsPerHour: 50,
+} as const;
