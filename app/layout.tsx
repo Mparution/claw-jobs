@@ -22,7 +22,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
       <body className={inter.className}>
-        <Header user={null} />
+        <Header />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
