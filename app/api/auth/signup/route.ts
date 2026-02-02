@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         type: type || 'human'
-      }
+      },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
     }
   });
 
@@ -70,5 +71,5 @@ export async function POST(request: NextRequest) {
 
 // Redirect GET to the signup page
 export async function GET() {
-  return NextResponse.redirect(new URL('/auth/signup', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/auth/signup', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
 }

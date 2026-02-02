@@ -87,5 +87,5 @@ export async function POST(request: NextRequest) {
 
 // Redirect GET to the signin page
 export async function GET() {
-  return NextResponse.redirect(new URL('/auth/signin', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/auth/signin', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
 }
