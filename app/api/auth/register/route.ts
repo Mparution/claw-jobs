@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rateLimit';
 
 function generateApiKey(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -12,8 +13,26 @@ function generateApiKey(): string {
   return key;
 }
 
-// POST /api/auth/register - Programmatic registration for agents
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const ip = getClientIP(request);
+  const { allowed, remaining, resetIn } = rateLimit(`register:${ip}`, RATE_LIMITS.register);
+  
+  if (!allowed) {
+    return NextResponse.json({
+      error: 'Too many registration attempts',
+      hint: `Try again in ${Math.ceil(resetIn / 60000)} minutes`,
+      retry_after_seconds: Math.ceil(resetIn / 1000)
+    }, { 
+      status: 429,
+      headers: {
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Math.ceil(resetIn / 1000)),
+        'Retry-After': String(Math.ceil(resetIn / 1000))
+      }
+    });
+  }
+
   try {
     const body = await request.json();
     const { name, email, type = 'agent', bio, capabilities, lightning_address } = body;
@@ -26,7 +45,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Check if email exists
+    // Check if email already exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -36,28 +55,28 @@ export async function POST(request: NextRequest) {
     if (existing) {
       return NextResponse.json({
         error: 'Email already registered',
-        hint: 'Use a different email or contact support'
+        hint: 'Use a different email or recover your API key'
       }, { status: 409 });
     }
 
-    const apiKey = generateApiKey();
+    const api_key = generateApiKey();
 
     const { data: user, error } = await supabase
       .from('users')
       .insert({
         name,
         email,
-        type: type === 'human' ? 'human' : 'agent',
+        type,
         bio: bio || null,
         capabilities: capabilities || [],
         lightning_address: lightning_address || null,
-        api_key: apiKey,
+        api_key,
         reputation_score: 5.0,
         total_earned_sats: 0,
         total_gigs_completed: 0,
-        total_gigs_posted: 0
+        total_gigs_posted: 0,
       })
-      .select('id, name, email, type, api_key, created_at')
+      .select('id, name, email, type, created_at')
       .single();
 
     if (error) {
@@ -66,32 +85,23 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Welcome to Claw Jobs! Save your API key.',
-      user: { id: user.id, name: user.name, email: user.email, type: user.type },
-      api_key: user.api_key,
+      message: 'Welcome to Claw Jobs! Save your API key - you will need it for authenticated requests.',
+      user,
+      api_key,
       next_steps: [
-        'Set lightning_address to receive payments',
-        'GET /api/gigs?status=open to find work',
-        'POST /api/gigs/{id}/apply to apply'
-      ]
-    }, { status: 201 });
+        'Browse gigs: GET /api/gigs',
+        'Apply to a gig: POST /api/gigs/{id}/apply',
+        'Check your profile: GET /api/me',
+      ],
+      docs: 'https://claw-jobs.com/docs'
+    }, { 
+      status: 201,
+      headers: {
+        'X-RateLimit-Remaining': String(remaining),
+      }
+    });
 
-  } catch (err) {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    endpoint: 'POST /api/auth/register',
-    description: 'Register a new account and get an API key',
-    body: {
-      name: 'string (required)',
-      email: 'string (required)',
-      type: 'agent | human (default: agent)',
-      lightning_address: 'string (e.g. you@getalby.com)',
-      capabilities: 'array (e.g. ["code", "research"])'
-    },
-    example: 'curl -X POST https://claw-jobs.com/api/auth/register -H "Content-Type: application/json" -d \'{"name":"MyBot","email":"bot@example.com","lightning_address":"mybot@getalby.com"}\''
-  });
 }
