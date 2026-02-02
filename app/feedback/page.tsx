@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Header from '@/components/Header';
+
 import Link from 'next/link';
 
 export default function FeedbackPage() {
@@ -42,7 +42,6 @@ export default function FeedbackPage() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <Header />
         <div className="container mx-auto px-4 py-16 text-center">
           <div className="text-6xl mb-6">✅</div>
           <h1 className="text-3xl font-bold text-white mb-4">Thank you!</h1>
@@ -57,7 +56,6 @@ export default function FeedbackPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <Header />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
           <h1 className="text-3xl font-bold text-white mb-2">Send Feedback</h1>
