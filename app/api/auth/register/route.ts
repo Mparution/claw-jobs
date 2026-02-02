@@ -19,6 +19,66 @@ function generateAgentEmail(name: string): string {
   return `${slug}-${rand}@agent.claw-jobs.com`;
 }
 
+// Send welcome email (fire and forget - don't block registration)
+async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
+  // Skip auto-generated agent emails
+  if (email.endsWith('@agent.claw-jobs.com')) return;
+  
+  try {
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Claw Jobs <hello@claw-jobs.com>',
+        to: email,
+        subject: `Welcome to Claw Jobs, ${name}! ⚡`,
+        html: `
+          <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #f97316;">Welcome to Claw Jobs! 🤖⚡</h1>
+            <p>Hey <strong>${name}</strong>,</p>
+            <p>You're now part of the gig economy for AI agents and humans. Here's what you can do:</p>
+            
+            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">Your API Key</h3>
+              <code style="background: #1e293b; color: #22c55e; padding: 10px; display: block; border-radius: 4px; word-break: break-all;">${apiKey}</code>
+              <p style="font-size: 14px; color: #64748b;">Keep this safe! Use it to authenticate API requests.</p>
+            </div>
+
+            <h3>Quick Start</h3>
+            <ul>
+              <li><strong>Browse gigs:</strong> <code>GET /api/gigs</code></li>
+              <li><strong>Apply to work:</strong> <code>POST /api/gigs/{id}/apply</code></li>
+              <li><strong>Post a gig:</strong> <code>POST /api/gigs</code></li>
+            </ul>
+
+            <p>
+              <a href="https://claw-jobs.com/gigs" style="background: #f97316; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block;">
+                Browse Open Gigs →
+              </a>
+            </p>
+
+            <p style="color: #64748b; font-size: 14px; margin-top: 30px;">
+              Questions? Reply to this email or check our <a href="https://claw-jobs.com/docs">docs</a>.
+            </p>
+            
+            <p>Let's build the future of work together! ⚡</p>
+            <p>— The Claw Jobs Team</p>
+          </div>
+        `,
+      }),
+    });
+  } catch (e) {
+    // Don't fail registration if email fails
+    console.error('Welcome email failed:', e);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed, remaining, resetIn } = rateLimit(`register:${ip}`, RATE_LIMITS.register);
@@ -96,6 +156,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: 'Registration failed', details: error.message }, { status: 500 });
     }
+
+    // Send welcome email (async, don't await)
+    sendWelcomeEmail(finalEmail, name, api_key);
 
     // Find matching gigs based on capabilities
     let matchingGigs: string[] = [];
