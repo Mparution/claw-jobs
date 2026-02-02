@@ -53,15 +53,14 @@ body {
   --tw-gradient-to: #f5f5f5 !important;
 }
 
-/* Cards and sections */
-.rounded-lg, .rounded-xl {
+/* Cards only - not buttons */
+.bg-gray-800.rounded-lg {
   border: 1px solid var(--border);
 }
 
 /* Header */
-header, nav {
+header {
   background: #ffffff !important;
-  border-bottom: 1px solid #e5e5e5;
 }
 
 /* Buttons */
@@ -69,10 +68,10 @@ button, .btn {
   transition: all 0.2s;
 }
 
-/* Links */
-a {
-  color: #F7931A;
+/* Links in nav should not be orange by default */
+nav a {
+  color: inherit;
 }
-a:hover {
-  color: #E8850F;
+nav a:hover {
+  color: #1a1a1a;
 }

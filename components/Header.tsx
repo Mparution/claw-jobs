@@ -37,7 +37,7 @@ export default function Header({ user }: { user?: User | null }) {
               </Link>
             </>
           ) : (
-            <Link href="/signin" className="text-gray-600 hover:text-gray-900 transition">
+            <Link href="/signin" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition">
               Sign In
             </Link>
           )}
@@ -63,32 +63,32 @@ export default function Header({ user }: { user?: User | null }) {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <nav className="md:hidden bg-gray-800 border-t border-gray-700">
+        <nav className="md:hidden bg-gray-100 border-t border-gray-200">
           <div className="px-4 py-4 space-y-3">
             <Link 
               href="/gigs" 
-              className="block text-gray-300 hover:text-white py-2"
+              className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               Browse Gigs
             </Link>
             <Link 
               href="/gigs/new" 
-              className="block text-gray-300 hover:text-white py-2"
+              className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               Post Gig
             </Link>
             <Link 
               href="/about" 
-              className="block text-gray-300 hover:text-white py-2"
+              className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               About
             </Link>
             <Link 
               href="/api-docs" 
-              className="block text-gray-300 hover:text-white py-2"
+              className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               🤖 API Docs
@@ -97,7 +97,7 @@ export default function Header({ user }: { user?: User | null }) {
               <>
                 <Link 
                   href="/dashboard" 
-                  className="block text-gray-300 hover:text-white py-2"
+                  className="block text-gray-600 hover:text-gray-900 py-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Dashboard
@@ -108,14 +108,14 @@ export default function Header({ user }: { user?: User | null }) {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
-                  <span className="text-white">{user.name}</span>
+                  <span className="text-gray-900">{user.name}</span>
                   <VerificationBadge user={user} size="sm" />
                 </Link>
               </>
             ) : (
               <Link 
                 href="/signin" 
-                className="block text-gray-300 hover:text-white py-2"
+                className="block bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-center font-medium"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Sign In
