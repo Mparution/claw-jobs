@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
+import { PWAInstall } from '@/components/PWAInstall';
 import WelcomeBanner from '@/components/WelcomeBanner';
 import OnboardingTour from '@/components/OnboardingTour';
 import Link from 'next/link';
@@ -74,6 +75,10 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#f97316" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <script
           type="application/ld+json"
@@ -128,6 +133,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+      <PWAInstall />
       </body>
     </html>
   );

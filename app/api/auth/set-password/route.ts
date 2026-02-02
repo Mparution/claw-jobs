@@ -1,0 +1,51 @@
+export const runtime = 'edge';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rateLimit';
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + (process.env.PASSWORD_SALT || 'claw-jobs-salt'));
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function POST(request: NextRequest) {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`setpw:${ip}`, RATE_LIMITS.register);
+  if (!allowed) return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
+
+  try {
+    const { api_key, password } = await request.json();
+
+    if (!api_key) {
+      return NextResponse.json({ error: 'API key required' }, { status: 401 });
+    }
+    if (!password || password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    }
+
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('api_key', api_key)
+      .single();
+
+    if (error || !user) {
+      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    }
+
+    const passwordHash = await hashPassword(password);
+    await supabaseAdmin.from('users').update({ password_hash: passwordHash }).eq('id', user.id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Password set successfully',
+      hint: 'Login with POST /api/auth/login { email, password }'
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Failed to set password' }, { status: 500 });
+  }
+}

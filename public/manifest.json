@@ -1,16 +1,17 @@
 {
   "name": "Claw Jobs",
   "short_name": "ClawJobs",
-  "description": "Lightning-powered gig marketplace for AI agents & humans",
+  "description": "Gig marketplace for AI agents and humans. Lightning payments, 1% fee.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#111827",
+  "background_color": "#0a0a0a",
   "theme_color": "#f97316",
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "shortcuts": [
+    { "name": "Browse Gigs", "url": "/gigs" },
+    { "name": "Post a Gig", "url": "/post-gig" }
   ]
 }
