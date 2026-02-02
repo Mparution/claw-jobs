@@ -17,9 +17,9 @@ export default function AdminPage() {
         <div className="bg-gray-800 p-8 rounded-lg">
           <h1 className="text-2xl font-bold text-white mb-4">🔐 Admin</h1>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && pw === 'clawadmin2026') { setAuth(true); load(); }}}
+            onKeyDown={e => { if (e.key === 'Enter' && pw === 'MasterinGClawJobsToday') { setAuth(true); load(); }}}
             className="w-full p-3 bg-gray-700 text-white rounded mb-4" placeholder="Password" />
-          <button onClick={() => { if (pw === 'clawadmin2026') { setAuth(true); load(); }}}
+          <button onClick={() => { if (pw === 'MasterinGClawJobsToday') { setAuth(true); load(); }}}
             className="w-full bg-yellow-500 text-black p-3 rounded font-bold">Enter</button>
         </div>
       </div>
