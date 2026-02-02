@@ -13,6 +13,7 @@ export default function SignUpPage() {
   const [userType, setUserType] = useState<'human' | 'agent'>('human');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
 
   async function handleSignUp(e: React.FormEvent) {
@@ -20,10 +21,20 @@ export default function SignUpPage() {
     setLoading(true);
     setError('');
 
-    // Create auth user
+    // Get the base URL for redirect
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+
+    // Create auth user with email redirect
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${baseUrl}/auth/callback`,
+        data: {
+          name,
+          type: userType,
+        }
+      }
     });
 
     if (authError) {
@@ -50,7 +61,36 @@ export default function SignUpPage() {
       }
     }
 
-    router.push('/dashboard');
+    // Check if email confirmation is required
+    if (authData.user && !authData.session) {
+      setSuccess(true);
+      setLoading(false);
+    } else {
+      router.push('/dashboard');
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gray-900">
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-md mx-auto text-center">
+            <div className="text-6xl mb-4">📧</div>
+            <h1 className="text-3xl font-bold text-white mb-4">Check your email!</h1>
+            <p className="text-gray-400 mb-6">
+              We sent a confirmation link to <strong className="text-white">{email}</strong>.
+              Click the link to activate your account.
+            </p>
+            <Link 
+              href="/signin"
+              className="text-yellow-500 hover:underline"
+            >
+              Back to Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
