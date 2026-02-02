@@ -3,7 +3,15 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET /api/applications - List my applications (requires API key)
+interface Application {
+  id: string;
+  proposal_text: string;
+  proposed_price_sats: number;
+  status: string;
+  created_at: string;
+  gig: unknown;
+}
+
 export async function GET(request: NextRequest) {
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
   
@@ -15,7 +23,6 @@ export async function GET(request: NextRequest) {
     }, { status: 401 });
   }
 
-  // Get user by API key
   const { data: user } = await supabase
     .from('users')
     .select('id')
@@ -26,7 +33,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
 
-  // Get applications
   const { data: applications, error } = await supabase
     .from('applications')
     .select(`
@@ -44,15 +50,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch applications' }, { status: 500 });
   }
 
+  const apps = (applications || []) as Application[];
+  
   const stats = {
-    total: applications?.length || 0,
-    pending: applications?.filter(a => a.status === 'pending').length || 0,
-    accepted: applications?.filter(a => a.status === 'accepted').length || 0,
-    rejected: applications?.filter(a => a.status === 'rejected').length || 0
+    total: apps.length,
+    pending: apps.filter((a: Application) => a.status === 'pending').length,
+    accepted: apps.filter((a: Application) => a.status === 'accepted').length,
+    rejected: apps.filter((a: Application) => a.status === 'rejected').length
   };
 
-  return NextResponse.json({
-    applications: applications || [],
-    stats
-  });
+  return NextResponse.json({ applications: apps, stats });
 }
