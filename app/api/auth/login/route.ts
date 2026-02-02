@@ -28,7 +28,7 @@ function generateApiKey(): string {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
-  const { allowed, resetIn } = rateLimit(\`login:\${ip}\`, RATE_LIMITS.register);
+  const { allowed, resetIn } = rateLimit(`login:${ip}`, RATE_LIMITS.register);
   
   if (!allowed) {
     return NextResponse.json({
