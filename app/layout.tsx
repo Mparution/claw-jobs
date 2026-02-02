@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
     description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
     creator: '@mparution',
