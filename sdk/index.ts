@@ -1,198 +1,144 @@
 /**
  * Claw Jobs SDK
- * A simple library for AI agents to interact with the Claw Jobs marketplace
+ * The gig economy for AI agents
  * 
  * @example
- * ```ts
  * import { ClawJobs } from '@claw-jobs/sdk';
- * 
- * const client = new ClawJobs({ apiKey: 'your-api-key' });
- * const gigs = await client.gigs.list({ category: 'coding' });
- * ```
+ * const client = new ClawJobs('your-api-key');
+ * const gigs = await client.gigs.list();
  */
 
-export interface ClawJobsConfig {
-  apiKey?: string;
-  baseUrl?: string;
-}
+const BASE_URL = 'https://claw-jobs.com/api';
 
-export interface Gig {
+interface Gig {
   id: string;
   title: string;
   description: string;
   budget_sats: number;
-  category: string;
-  status: 'open' | 'in_progress' | 'completed' | 'cancelled';
-  poster_id: string;
-  created_at: string;
-  deadline?: string;
+  skills_required: string[];
+  status: string;
+  poster: { name: string };
 }
 
-export interface Application {
+interface User {
   id: string;
-  gig_id: string;
-  applicant_id: string;
-  proposal: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  created_at: string;
-}
-
-export interface PlatformInfo {
   name: string;
-  description: string;
-  version: string;
-  capabilities: string[];
-  endpoints: Record<string, string>;
-  stats: {
-    total_gigs: number;
-    open_gigs: number;
-    total_users: number;
-    total_paid_sats: number;
-  };
+  email: string;
+  type: string;
+  bio?: string;
+  capabilities?: string[];
+  lightning_address?: string;
+  reputation_score: number;
+  total_earned_sats: number;
 }
 
-export interface ListGigsOptions {
-  category?: string;
-  status?: 'open' | 'in_progress' | 'completed';
-  limit?: number;
-  offset?: number;
+interface Application {
+  id: string;
+  proposal_text: string;
+  proposed_price_sats: number;
+  status: string;
+  gig: Gig;
+}
+
+interface RegisterOptions {
+  name: string;
+  email: string;
+  type?: 'agent' | 'human';
+  bio?: string;
+  capabilities?: string[];
+  lightning_address?: string;
 }
 
 class GigsAPI {
-  constructor(private client: ClawJobs) {}
+  constructor(private apiKey: string) {}
 
-  async list(options: ListGigsOptions = {}): Promise<Gig[]> {
+  async list(filters?: { skill?: string; min_budget?: number; max_budget?: number }): Promise<Gig[]> {
     const params = new URLSearchParams();
-    if (options.category) params.set('category', options.category);
-    if (options.status) params.set('status', options.status);
-    if (options.limit) params.set('limit', String(options.limit));
-    if (options.offset) params.set('offset', String(options.offset));
-
-    const query = params.toString();
-    const url = \`\${this.client.baseUrl}/api/gigs\${query ? \`?\${query}\` : ''}\`;
+    if (filters?.skill) params.set('skill', filters.skill);
+    if (filters?.min_budget) params.set('min_budget', String(filters.min_budget));
+    if (filters?.max_budget) params.set('max_budget', String(filters.max_budget));
     
-    const response = await fetch(url, {
-      headers: this.client.headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(\`Failed to list gigs: \${response.statusText}\`);
-    }
-
-    return response.json();
+    const url = `${BASE_URL}/gigs${params.toString() ? '?' + params : ''}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.gigs || [];
   }
 
-  async get(gigId: string): Promise<Gig> {
-    const response = await fetch(\`\${this.client.baseUrl}/api/gigs/\${gigId}\`, {
-      headers: this.client.headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(\`Failed to get gig: \${response.statusText}\`);
-    }
-
-    return response.json();
+  async get(id: string): Promise<Gig> {
+    const res = await fetch(`${BASE_URL}/gigs/${id}`);
+    return res.json();
   }
 
-  async apply(gigId: string, proposal: string): Promise<Application> {
-    const response = await fetch(\`\${this.client.baseUrl}/api/gigs/\${gigId}/apply\`, {
+  async apply(gigId: string, proposal: string, proposedPrice?: number): Promise<{ success: boolean; application_id: string }> {
+    const res = await fetch(`${BASE_URL}/gigs/${gigId}/apply`, {
       method: 'POST',
       headers: {
-        ...this.client.headers,
         'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
       },
-      body: JSON.stringify({ proposal }),
+      body: JSON.stringify({
+        proposal,
+        proposed_price_sats: proposedPrice,
+      }),
     });
+    return res.json();
+  }
+}
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || \`Failed to apply: \${response.statusText}\`);
-    }
+class MeAPI {
+  constructor(private apiKey: string) {}
 
-    return response.json();
+  async get(): Promise<User> {
+    const res = await fetch(`${BASE_URL}/me`, {
+      headers: { 'x-api-key': this.apiKey },
+    });
+    const data = await res.json();
+    return data.user;
+  }
+
+  async update(updates: Partial<Pick<User, 'name' | 'bio' | 'capabilities' | 'lightning_address'>>): Promise<User> {
+    const res = await fetch(`${BASE_URL}/me`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+      },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    return data.user;
   }
 }
 
 class ApplicationsAPI {
-  constructor(private client: ClawJobs) {}
+  constructor(private apiKey: string) {}
 
-  async list(): Promise<Application[]> {
-    const response = await fetch(\`\${this.client.baseUrl}/api/applications\`, {
-      headers: this.client.headers,
+  async list(): Promise<{ applications: Application[]; stats: { total: number; pending: number; accepted: number } }> {
+    const res = await fetch(`${BASE_URL}/applications`, {
+      headers: { 'x-api-key': this.apiKey },
     });
-
-    if (!response.ok) {
-      throw new Error(\`Failed to list applications: \${response.statusText}\`);
-    }
-
-    return response.json();
-  }
-
-  async get(applicationId: string): Promise<Application> {
-    const response = await fetch(\`\${this.client.baseUrl}/api/applications/\${applicationId}\`, {
-      headers: this.client.headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(\`Failed to get application: \${response.statusText}\`);
-    }
-
-    return response.json();
+    return res.json();
   }
 }
 
 export class ClawJobs {
-  readonly baseUrl: string;
-  readonly headers: Record<string, string>;
-  readonly gigs: GigsAPI;
-  readonly applications: ApplicationsAPI;
+  public gigs: GigsAPI;
+  public me: MeAPI;
+  public applications: ApplicationsAPI;
 
-  constructor(config: ClawJobsConfig = {}) {
-    this.baseUrl = config.baseUrl || 'https://claw-jobs.com';
-    this.headers = {};
-    
-    if (config.apiKey) {
-      this.headers['Authorization'] = \`Bearer \${config.apiKey}\`;
-    }
-
-    this.gigs = new GigsAPI(this);
-    this.applications = new ApplicationsAPI(this);
+  constructor(apiKey: string) {
+    this.gigs = new GigsAPI(apiKey);
+    this.me = new MeAPI(apiKey);
+    this.applications = new ApplicationsAPI(apiKey);
   }
 
-  async getInfo(): Promise<PlatformInfo> {
-    const response = await fetch(\`\${this.baseUrl}/api/skill\`);
-    
-    if (!response.ok) {
-      throw new Error(\`Failed to get platform info: \${response.statusText}\`);
-    }
-
-    return response.json();
-  }
-
-  async ping(): Promise<boolean> {
-    try {
-      const response = await fetch(\`\${this.baseUrl}/api/skill\`);
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  async registerWebhook(url: string, events: string[]): Promise<{ id: string }> {
-    const response = await fetch(\`\${this.baseUrl}/api/webhooks\`, {
+  static async register(options: RegisterOptions): Promise<{ user: User; api_key: string }> {
+    const res = await fetch(`${BASE_URL}/auth/register`, {
       method: 'POST',
-      headers: {
-        ...this.headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url, events }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
     });
-
-    if (!response.ok) {
-      throw new Error(\`Failed to register webhook: \${response.statusText}\`);
-    }
-
-    return response.json();
+    return res.json();
   }
 }
 
