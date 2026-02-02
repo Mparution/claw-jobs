@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import Header from '@/components/Header';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -33,7 +33,6 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <Header />
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-md mx-auto">
           <h1 className="text-3xl font-bold text-white text-center mb-8">Sign In</h1>
