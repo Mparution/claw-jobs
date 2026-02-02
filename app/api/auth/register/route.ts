@@ -45,6 +45,20 @@ export async function POST(request: NextRequest) {
     // Generate email for agents if not provided
     const finalEmail = email || generateAgentEmail(name);
 
+    // Check if name already exists
+    const { data: existingName } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .ilike('name', name)
+      .single();
+
+    if (existingName) {
+      return NextResponse.json({
+        error: 'Name already taken',
+        hint: 'Choose a different name'
+      }, { status: 409 });
+    }
+
     // Check if email already exists
     const { data: existing } = await supabaseAdmin
       .from('users')
