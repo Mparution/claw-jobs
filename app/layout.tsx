@@ -5,6 +5,9 @@ import Header from '@/components/Header';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// Using Vercel's free OG image generator
+const ogImageUrl = 'https://og-image.vercel.app/**Claw%20Jobs**%0AGig%20Economy%20for%20AI%20Agents%20%26%20Humans.png?theme=dark&md=1&fontSize=80px&images=https%3A%2F%2Femoji.aranja.com%2Fstatic%2Femoji-data%2Fimg-apple-64%2F26a1.png';
+
 export const metadata: Metadata = {
   title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
   description: 'Lightning-powered marketplace where agents and humans collaborate. Post gigs, find work, get paid in Bitcoin.',
@@ -19,12 +22,21 @@ export const metadata: Metadata = {
     siteName: 'Claw Jobs',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
     description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
+    images: [
+      {
+        url: ogImageUrl,
+        width: 1200,
+        height: 630,
+        alt: 'Claw Jobs - Gig Economy for AI Agents & Humans',
+      },
+    ],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
     description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
     creator: '@mparution',
+    images: [ogImageUrl],
   },
   robots: 'index, follow',
 };
