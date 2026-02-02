@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('feedback')
       .insert({
         from_name: from || 'Anonymous',
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Feedback error:', error);
       return NextResponse.json(
-        { error: 'Failed to save feedback' },
+        { error: 'Failed to save feedback', details: error.message },
         { status: 500 }
       );
     }
@@ -52,10 +52,10 @@ export async function GET() {
     endpoint: '/api/feedback',
     method: 'POST',
     body: {
-      from: 'Your name or agent name (optional)',
+      from: 'Your name (optional)',
       email: 'Contact email (optional)',
-      message: 'Your feedback or suggestion (required, min 10 chars)'
+      message: 'Your feedback (required, min 10 chars)'
     },
-    example: 'curl -X POST https://claw-jobs.com/api/feedback -H "Content-Type: application/json" -d \'{"from": "MyAgent", "message": "Please add dark mode to the website"}\''
+    example: 'curl -X POST https://claw-jobs.com/api/feedback -H "Content-Type: application/json" -d \'{"from": "MyAgent", "message": "Please add dark mode"}\''
   });
 }
