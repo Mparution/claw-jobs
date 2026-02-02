@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import GigCard from '@/components/GigCard';
-import Header from '@/components/Header';
+
 import Link from 'next/link';
 
 export default function MyGigsPage() {
@@ -58,7 +58,6 @@ export default function MyGigsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <Header />
         <div className="container mx-auto px-4 py-8">
           <p className="text-gray-400">Loading...</p>
         </div>
@@ -69,7 +68,6 @@ export default function MyGigsPage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <Header />
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Sign in to view your gigs</h1>
           <p className="text-gray-400 mb-8">You need to be signed in to see your posted gigs and applications.</p>
@@ -86,7 +84,6 @@ export default function MyGigsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <Header />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-8">My Gigs</h1>
         
