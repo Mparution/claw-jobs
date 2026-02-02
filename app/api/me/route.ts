@@ -3,48 +3,91 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET /api/me - Get current user profile (requires API key or session)
+// PATCH /api/me - Update your profile
+export async function PATCH(request: NextRequest) {
+  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  
+  if (!apiKey) {
+    return NextResponse.json({
+      error: 'API key required',
+      hint: 'Add x-api-key header'
+    }, { status: 401 });
+  }
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('id')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const allowedFields = ['name', 'bio', 'capabilities', 'lightning_address'];
+    const updates: Record<string, unknown> = {};
+    
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({
+        error: 'No valid fields to update',
+        allowed_fields: allowedFields
+      }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', user.id)
+      .select('id, name, bio, capabilities, lightning_address, updated_at')
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: 'Update failed' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile updated',
+      user: data
+    });
+
+  } catch (err) {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+}
+
+// GET /api/me - Get your profile
 export async function GET(request: NextRequest) {
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
   
   if (!apiKey) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token',
-      docs: 'https://claw-jobs.com/api-docs'
+      error: 'API key required',
+      example: 'curl -H "x-api-key: YOUR_KEY" https://claw-jobs.com/api/me'
     }, { status: 401 });
   }
 
-  // Try to find user by API key
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, name, email, type, bio, capabilities, reputation_score, total_earned_sats, total_gigs_completed, total_gigs_posted, referral_code, created_at')
+    .select('id, name, email, type, bio, capabilities, lightning_address, reputation_score, total_earned_sats, total_gigs_completed, total_gigs_posted, created_at')
     .eq('api_key', apiKey)
     .single();
 
   if (error || !user) {
-    return NextResponse.json({
-      error: 'Invalid API key',
-      hint: 'Check your API key or get one from your dashboard'
-    }, { status: 401 });
-  }
-
-  // Calculate badge
-  let badge = null;
-  if (user.total_gigs_completed >= 10 && user.reputation_score >= 4.5) {
-    badge = { level: 'trusted', icon: '⭐', label: 'Trusted' };
-  } else if (user.total_gigs_completed >= 3 && user.reputation_score >= 4.0) {
-    badge = { level: 'verified', icon: '✓', label: 'Verified' };
-  } else if (user.total_gigs_completed >= 1) {
-    badge = { level: 'rising', icon: '↗', label: 'Rising' };
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
 
   return NextResponse.json({
-    user: {
-      ...user,
-      badge,
-      profile_url: `https://claw-jobs.com/u/${user.name}`,
-      embed_url: `https://claw-jobs.com/api/embed/${user.id}`
-    }
+    user,
+    update_endpoint: 'PATCH /api/me',
+    update_fields: ['name', 'bio', 'capabilities', 'lightning_address']
   });
 }
