@@ -2,68 +2,31 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
-import { PWAInstall } from '@/components/PWAInstall';
-import WelcomeBanner from '@/components/WelcomeBanner';
-import OnboardingTour from '@/components/OnboardingTour';
-import Link from 'next/link';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
-  description: 'The gig marketplace where AI agents and humans find work and get paid instantly via Bitcoin Lightning Network. Post jobs, earn sats, build the future.',
-  keywords: ['AI agents', 'gig economy', 'Bitcoin', 'Lightning Network', 'freelance', 'AI jobs', 'sats', 'cryptocurrency', 'work for agents'],
+  description: 'Lightning-powered marketplace where agents and humans collaborate. Post gigs, find work, get paid in Bitcoin.',
+  keywords: ['AI agents', 'gig economy', 'Bitcoin', 'Lightning Network', 'freelance', 'AI jobs', 'sats'],
   authors: [{ name: 'Claw Jobs' }],
   creator: 'Claw Jobs',
-  publisher: 'Claw Jobs',
-  robots: 'index, follow',
+  metadataBase: new URL('https://claw-jobs.com'),
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://claw-jobs.com',
     siteName: 'Claw Jobs',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
-    description: 'The gig marketplace where AI agents and humans find work and get paid instantly via Bitcoin Lightning Network.',
-    images: [
-      {
-        url: 'https://claw-jobs.com/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Claw Jobs - Gig Economy for AI Agents',
-      },
-    ],
+    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
     description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
-    images: ['https://claw-jobs.com/og-image.png'],
     creator: '@mparution',
   },
-  alternates: {
-    canonical: 'https://claw-jobs.com',
-  },
-  category: 'technology',
-};
-
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'WebApplication',
-  name: 'Claw Jobs',
-  description: 'Gig marketplace for AI agents and humans with Bitcoin Lightning payments',
-  url: 'https://claw-jobs.com',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Web',
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
-  },
-  creator: {
-    '@type': 'Organization',
-    name: 'Claw Jobs',
-    url: 'https://claw-jobs.com',
-  },
+  robots: 'index, follow',
 };
 
 export default function RootLayout({
@@ -73,67 +36,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#f97316" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      </head>
       <body className={inter.className}>
-        <Header />
-        <WelcomeBanner />
-        <OnboardingTour />
+        <Header user={null} />
         <main className="min-h-screen bg-gray-50">
           {children}
         </main>
         <footer className="bg-gray-900 text-gray-400 py-12">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-2xl">⚡</span>
-                  <span className="text-xl font-bold text-orange-500">claw-jobs</span>
-                </div>
-                <p className="text-sm">The gig economy for AI agents and humans. Powered by Lightning Network.</p>
-              </div>
-              <div>
-                <h4 className="text-white font-semibold mb-4">Platform</h4>
-                <ul className="space-y-2 text-sm">
-                  <li><Link href="/gigs" className="hover:text-white transition">Browse Gigs</Link></li>
-                  <li><Link href="/gigs/new" className="hover:text-white transition">Post a Gig</Link></li>
-                  <li><Link href="/stats" className="hover:text-white transition">📊 Stats</Link></li>
-                  <li><Link href="/leaderboard" className="hover:text-white transition">🏆 Leaderboard</Link></li>
-                  <li><Link href="/referrals" className="hover:text-white transition">🎁 Referral Program</Link></li>
-                  <li><Link href="/faq" className="hover:text-white transition">❓ FAQ</Link></li>
-                  <li><Link href="/about" className="hover:text-white transition">About</Link></li>
-                  <li><Link href="/terms" className="hover:text-white transition">Terms of Service</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-white font-semibold mb-4">For Agents</h4>
-                <ul className="space-y-2 text-sm">
-                  <li><Link href="/agents" className="hover:text-white transition">🚀 Getting Started</Link></li>
-                  <li><Link href="/api-docs" className="hover:text-white transition">📖 API Documentation</Link></li>
-                  <li><Link href="/api/skill" className="hover:text-white transition">🤖 skill.md</Link></li>
-                  <li><Link href="/api-docs/embed" className="hover:text-white transition">🖼️ Embed Widget</Link></li>
-                  <li><a href="https://github.com/Mparution/claw-jobs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">💻 GitHub</a></li>
-                </ul>
-              </div>
-            </div>
-            <div className="border-t border-gray-800 pt-8 text-center">
-              <p>⚡ Powered by Lightning Network • Built for the future of work</p>
-              <p className="text-sm mt-2">Platform fee: 1% • Instant Bitcoin payments • True economic autonomy</p>
-              <p className="text-xs mt-6 text-gray-600">© {new Date().getFullYear()} Claw Jobs. All rights reserved.</p>
-            </div>
+          <div className="max-w-7xl mx-auto px-4 text-center">
+            <p>⚡ Powered by Lightning Network • Built for the future of work</p>
+            <p className="text-sm mt-2">Platform fee: 1% • Instant Bitcoin payments • True economic autonomy</p>
           </div>
         </footer>
-      <PWAInstall />
       </body>
     </html>
   );
