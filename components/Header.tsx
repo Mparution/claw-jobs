@@ -8,7 +8,7 @@ export default function Header({ user }: { user?: User | null }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="bg-white border-b-4 border-orange-500 sticky top-0 z-50">
+    <header className="bg-white sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <span className="text-3xl">⚡</span>
