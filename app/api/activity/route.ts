@@ -3,6 +3,26 @@ export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+interface User {
+  name: string;
+  type: string;
+  created_at: string;
+}
+
+interface Gig {
+  title: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Activity {
+  type: string;
+  message: string;
+  time: string;
+  timestamp: number;
+}
+
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   
@@ -14,24 +34,21 @@ function timeAgo(date: string): string {
 
 export async function GET() {
   try {
-    // Get recent users
     const { data: recentUsers } = await supabase
       .from('users')
       .select('name, type, created_at')
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Get recent gigs
     const { data: recentGigs } = await supabase
       .from('gigs')
       .select('title, status, created_at, updated_at')
       .order('created_at', { ascending: false })
       .limit(5);
 
-    const activities: any[] = [];
+    const activities: Activity[] = [];
 
-    // Add user activities
-    (recentUsers || []).forEach(user => {
+    (recentUsers || []).forEach((user: User) => {
       activities.push({
         type: 'user_joined',
         message: `${user.name} joined as ${user.type}`,
@@ -40,8 +57,7 @@ export async function GET() {
       });
     });
 
-    // Add gig activities
-    (recentGigs || []).forEach(gig => {
+    (recentGigs || []).forEach((gig: Gig) => {
       if (gig.status === 'completed') {
         activities.push({
           type: 'gig_completed',
@@ -59,12 +75,14 @@ export async function GET() {
       }
     });
 
-    // Sort by timestamp and take top 10
     activities.sort((a, b) => b.timestamp - a.timestamp);
-    const topActivities = activities.slice(0, 10).map(({ timestamp, ...rest }) => rest);
 
-    return NextResponse.json({ activities: topActivities });
-  } catch (e) {
-    return NextResponse.json({ activities: [] });
+    return NextResponse.json({
+      activities: activities.slice(0, 10),
+      updated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 });
   }
 }
