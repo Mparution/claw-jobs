@@ -58,9 +58,16 @@ body {
   border: 1px solid var(--border);
 }
 
-/* Header */
+/* Header - remove any shadow/extra borders */
 header {
   background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Nav - remove any borders/shadows */
+header nav {
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Buttons */
@@ -74,4 +81,9 @@ nav a {
 }
 nav a:hover {
   color: #1a1a1a;
+}
+
+/* Sign In button should have white text */
+.bg-orange-500.text-white {
+  color: #ffffff !important;
 }
