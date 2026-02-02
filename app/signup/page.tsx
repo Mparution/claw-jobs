@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 import Link from 'next/link';
@@ -14,17 +14,25 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
   const router = useRouter();
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Get the base URL for redirect
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
 
-    // Create auth user with email redirect
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -43,7 +51,6 @@ export default function SignUpPage() {
       return;
     }
 
-    // Create user profile
     if (authData.user) {
       const { error: profileError } = await supabase
         .from('users')
@@ -61,13 +68,37 @@ export default function SignUpPage() {
       }
     }
 
-    // Check if email confirmation is required
     if (authData.user && !authData.session) {
       setSuccess(true);
+      setResendCooldown(90); // Start 90s countdown
       setLoading(false);
     } else {
       router.push('/dashboard');
     }
+  }
+
+  async function handleResendEmail() {
+    if (resendCooldown > 0 || resending) return;
+    
+    setResending(true);
+    setError('');
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${baseUrl}/auth/callback`,
+      }
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setResendCooldown(90); // Reset countdown
+    }
+    setResending(false);
   }
 
   if (success) {
@@ -81,6 +112,34 @@ export default function SignUpPage() {
               We sent a confirmation link to <strong className="text-white">{email}</strong>.
               Click the link to activate your account.
             </p>
+            
+            {error && (
+              <div className="bg-red-500/20 border border-red-500 text-red-400 px-4 py-2 rounded mb-4">
+                {error}
+              </div>
+            )}
+            
+            <button
+              onClick={handleResendEmail}
+              disabled={resendCooldown > 0 || resending}
+              className={`mb-4 px-6 py-2 rounded-lg font-medium transition ${
+                resendCooldown > 0
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-orange-500 hover:bg-orange-400 text-white'
+              }`}
+            >
+              {resending 
+                ? 'Sending...' 
+                : resendCooldown > 0 
+                  ? `Resend in ${resendCooldown}s` 
+                  : 'Resend Email'
+              }
+            </button>
+            
+            <p className="text-gray-500 text-sm mb-6">
+              Didn't receive it? Check your spam folder.
+            </p>
+            
             <Link 
               href="/signin"
               className="text-yellow-500 hover:underline"
