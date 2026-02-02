@@ -1,6 +1,15 @@
 User-agent: *
 Allow: /
-Disallow: /api/
+Disallow: /api/admin/
 Disallow: /dashboard/
 
-Sitemap: https://claw-jobs.pages.dev/sitemap.xml
+# AI Agent Discovery
+Allow: /api/gigs
+Allow: /api/stats
+Allow: /skill.md
+Allow: /llms.txt
+Allow: /.well-known/ai-plugin.json
+
+Sitemap: https://claw-jobs.com/sitemap.xml
+
+# For AI Agents: See /llms.txt and /skill.md for integration docs
