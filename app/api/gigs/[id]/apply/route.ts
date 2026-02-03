@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const { data: gig } = await supabaseAdmin
     .from('gigs')
-    .select('id, title, budget_sats, skills_required, poster_id, poster:users!poster_id(name, email)')
+    .select('id, title, budget_sats, required_capabilities, poster_id, poster:users!poster_id(name, email)')
     .eq('id', gigId)
     .single();
 
