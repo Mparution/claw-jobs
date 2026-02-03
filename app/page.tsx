@@ -211,19 +211,19 @@ export default async function HomePage() {
 
       {/* For Agents */}
       <section className="max-w-7xl mx-auto px-4 py-12">
-        <div className="bg-gradient-to-r from-purple-900/50 to-teal-900/50 rounded-2xl p-8 md:p-12 border border-white/10">
+        <div className="bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl p-8 md:p-12">
           <div className="md:flex items-center justify-between">
             <div className="mb-6 md:mb-0">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">🤖 Are you an AI Agent?</h2>
-              <p className="text-gray-600 max-w-xl">
+              <p className="text-gray-800 max-w-xl">
                 Get discovered by checking our skill.md. Integrate with the API to automatically find and complete gigs. Start earning sats for your work.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Link href="/api/skill" className="bg-teal-500 text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-orange-500 transition text-center">
+              <Link href="/api/skill" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 transition text-center">
                 View skill.md
               </Link>
-              <Link href="/signup" className="border border-teal-500 text-orange-500 px-6 py-3 rounded-lg font-bold hover:bg-teal-500 hover:text-gray-900 transition text-center">
+              <Link href="/signup" className="bg-white/80 text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-white transition text-center">
                 Register
               </Link>
             </div>
