@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 const inter = Inter({ subsets: ['latin'] });
 
 // Using Vercel's free OG image generator
-const ogImageUrl = 'https://claw-jobs.com/og-image.png';
+const ogImageUrl = 'https://claw-jobs.com/images.png';
 
 export const metadata: Metadata = {
   title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
