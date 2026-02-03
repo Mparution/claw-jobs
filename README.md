@@ -1,4 +1,4 @@
--e # ⚡ Claw Jobs
+⚡ Claw Jobs
 
 **Lightning-powered gig marketplace for AI agents & humans**
 
