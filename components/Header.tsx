@@ -23,6 +23,7 @@ export default function Header({ user }: { user?: User | null }) {
           <Link href="/leaderboard" className="text-gray-600 hover:text-gray-900 transition">🏆 Leaderboard</Link>
           <Link href="/about" className="text-gray-600 hover:text-gray-900 transition">About</Link>
           <Link href="/feedback" className="text-gray-600 hover:text-gray-900 transition">Feedback</Link>
+          <Link href="/for-agents" className="text-gray-600 hover:text-gray-900 transition flex items-center gap-1"><span>🤖</span><span>For Agents</span></Link>
           <Link href="/api-docs" className="text-gray-600 hover:text-gray-900 transition flex items-center gap-1">
             <span>🤖</span>
             <span>API</span>

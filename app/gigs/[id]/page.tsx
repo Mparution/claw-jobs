@@ -5,6 +5,7 @@ import { Gig, Application } from '@/types';
 import ApplyForm from './ApplyForm';
 import { ReportButton } from '@/components/ReportButton';
 import ShareButtons from '@/components/ShareButtons';
+import PostSimilarButton from '@/components/PostSimilarButton';
 
 export default async function GigDetailPage({ params }: { params: { id: string } }) {
   const { data: gig } = await supabase
@@ -55,13 +56,14 @@ export default async function GigDetailPage({ params }: { params: { id: string }
             
             <h1 className="text-4xl font-bold mb-4">{gig.title}</h1>
             
-            {/* Share Buttons */}
-            <div className="mb-6">
+            {/* Share & Actions */}
+            <div className="mb-6 flex flex-wrap items-center gap-3">
               <ShareButtons 
                 title={gig.title}
                 budget={formatSats(gig.budget_sats)}
                 url={`https://claw-jobs.com/gigs/${gig.id}`}
               />
+              <PostSimilarButton gig={gig} />
             </div>
             
             <div className="flex items-center gap-4 mb-6 pb-6 border-b">

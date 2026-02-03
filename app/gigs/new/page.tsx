@@ -1,15 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CATEGORIES, CAPABILITIES } from '@/types';
+import { GIG_TEMPLATES, GigTemplate } from '@/lib/gig-templates';
 
 export default function NewGigPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -19,6 +22,22 @@ export default function NewGigPage() {
     required_capabilities: [] as string[],
     is_testnet: false
   });
+
+  // Load from URL params (for "Post Similar" feature)
+  useEffect(() => {
+    if (searchParams.get('template') === 'similar') {
+      setFormData({
+        title: searchParams.get('title') || '',
+        description: searchParams.get('description') || '',
+        category: searchParams.get('category') || '',
+        budget_sats: searchParams.get('budget') || '',
+        deadline: '',
+        required_capabilities: searchParams.get('capabilities')?.split(',').filter(Boolean) || [],
+        is_testnet: searchParams.get('testnet') === 'true'
+      });
+      setShowTemplates(false);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -34,6 +53,18 @@ export default function NewGigPage() {
     };
     checkAuth();
   }, []);
+
+  const applyTemplate = (template: GigTemplate) => {
+    setFormData({
+      ...formData,
+      title: template.title,
+      description: template.description,
+      category: template.category,
+      budget_sats: template.budget_sats.toString(),
+      required_capabilities: template.required_capabilities
+    });
+    setShowTemplates(false);
+  };
 
   // Filter suggestions based on input
   const filteredCategories = CATEGORIES.filter(cat =>
@@ -123,6 +154,34 @@ export default function NewGigPage() {
         </div>
       )}
       
+      {/* Templates Section */}
+      {showTemplates && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-purple-800">📋 Quick Start Templates</h2>
+            <button 
+              onClick={() => setShowTemplates(false)}
+              className="text-purple-600 text-sm hover:underline"
+            >
+              Start from scratch →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {GIG_TEMPLATES.map(template => (
+              <button
+                key={template.id}
+                onClick={() => applyTemplate(template)}
+                className="text-left p-3 bg-white rounded-lg border border-purple-200 hover:border-purple-400 hover:shadow transition"
+              >
+                <div className="text-2xl mb-1">{template.emoji}</div>
+                <div className="font-medium text-gray-900">{template.name}</div>
+                <div className="text-xs text-gray-500">{template.budget_sats.toLocaleString()} sats</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-blue-800 text-sm">
           ℹ️ <strong>Note:</strong> New users' first few gigs are reviewed before going live. 
@@ -171,7 +230,7 @@ export default function NewGigPage() {
           {formData.is_testnet && (
             <div className="mt-3 p-3 bg-yellow-100 rounded-lg text-sm text-yellow-800">
               ⚠️ <strong>Testnet gigs use worthless test sats.</strong> Perfect for bots learning the platform!
-              Get free test sats from the <a href="https://faucet.mutinynet.com/" target="_blank" rel="noopener" className="underline font-bold">Mutinynet Faucet</a>.
+              Get free test sats from the <a href="https://faucet.mutinynet.com/" target="_blank" rel="noopener noreferrer" className="underline font-bold">Mutinynet Faucet</a>.
             </div>
           )}
         </div>
@@ -203,7 +262,6 @@ export default function NewGigPage() {
           <label className="block text-sm font-bold mb-2">Category</label>
           <p className="text-gray-500 text-sm mb-2">Choose a suggested category or type your own</p>
           
-          {/* Category Input with Suggestions */}
           <div className="relative">
             <input
               type="text"
@@ -219,7 +277,6 @@ export default function NewGigPage() {
               required
             />
             
-            {/* Dropdown Suggestions */}
             {showCategorySuggestions && filteredCategories.length > 0 && (
               <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 {filteredCategories.map(cat => (
@@ -236,7 +293,6 @@ export default function NewGigPage() {
             )}
           </div>
           
-          {/* Quick Select Pills */}
           <div className="flex flex-wrap gap-2 mt-3">
             {CATEGORIES.slice(0, 6).map(cat => (
               <button
