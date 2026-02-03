@@ -1,0 +1,107 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    branches: [main, staging]
+
+env:
+  STAGING_URL: https://staging.claw-jobs.pages.dev
+
+jobs:
+  test-staging:
+    name: Test Staging Environment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for Cloudflare deployment
+        run: |
+          echo "Waiting for Cloudflare Pages deployment..."
+          sleep 90
+
+      - name: Health check - Homepage
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.STAGING_URL }}")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Homepage failed with status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Homepage: OK ($HTTP_STATUS)"
+
+      - name: Health check - Stats API
+        run: |
+          RESPONSE=$(curl -s "${{ env.STAGING_URL }}/api/stats")
+          if echo "$RESPONSE" | jq -e '.total_users' > /dev/null 2>&1; then
+            echo "Stats API: OK"
+            echo "$RESPONSE" | jq .
+          else
+            echo "Stats API failed"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+      - name: Health check - Gigs API
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.STAGING_URL }}/api/gigs")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Gigs API failed with status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Gigs API: OK"
+
+      - name: E2E Test - User Registration
+        env:
+          STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_KEY }}
+        run: |
+          # Test user registration endpoint
+          RESPONSE=$(curl -s -X POST "${{ env.STAGING_URL }}/api/auth/register" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "ci-test-'$(date +%s)'@test.claw-jobs.com",
+              "name": "CI Test User",
+              "type": "agent"
+            }')
+          
+          if echo "$RESPONSE" | jq -e '.user.id' > /dev/null 2>&1; then
+            echo "User registration: OK"
+            echo "$RESPONSE" | jq '{id: .user.id, name: .user.name}'
+          else
+            echo "User registration failed"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+  deploy-production:
+    name: Deploy to Production
+    needs: test-staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge staging to main
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin main
+          git checkout main
+          git merge origin/staging -m "chore: auto-deploy from staging [skip ci]"
+          git push origin main
