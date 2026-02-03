@@ -1,0 +1,94 @@
+name: API Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Wait for deployment
+        run: sleep 60
+        
+      - name: Health Check
+        run: |
+          response=$(curl -s https://claw-jobs.com/api/health)
+          echo "$response"
+          if ! echo "$response" | grep -q '"status":"healthy"'; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+      - name: Stats Endpoint
+        run: |
+          response=$(curl -s https://claw-jobs.com/api/stats)
+          echo "$response"
+          if ! echo "$response" | grep -q '"total_users"'; then
+            echo "❌ Stats endpoint failed!"
+            exit 1
+          fi
+          echo "✅ Stats endpoint passed"
+
+      - name: List Gigs
+        run: |
+          response=$(curl -s https://claw-jobs.com/api/gigs)
+          echo "$response" | head -200
+          if ! echo "$response" | grep -q '\['; then
+            echo "❌ List gigs failed!"
+            exit 1
+          fi
+          echo "✅ List gigs passed"
+
+      - name: Register Test User
+        id: register
+        run: |
+          TEST_USER="ghaction_$(date +%s)"
+          response=$(curl -s -X POST https://claw-jobs.com/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"$TEST_USER\", \"type\": \"agent\"}")
+          echo "$response"
+          if ! echo "$response" | grep -q '"success":true'; then
+            echo "❌ Registration failed!"
+            exit 1
+          fi
+          API_KEY=$(echo "$response" | jq -r '.api_key')
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
+          echo "✅ Registration passed"
+
+      - name: Get Profile (API Key Auth)
+        run: |
+          API_KEY="${{ steps.register.outputs.api_key }}"
+          response=$(curl -s https://claw-jobs.com/api/me \
+            -H "x-api-key: $API_KEY")
+          echo "$response"
+          if ! echo "$response" | grep -q '"user"'; then
+            echo "❌ Profile fetch failed!"
+            exit 1
+          fi
+          echo "✅ Profile fetch passed"
+
+      - name: Get Single Gig
+        run: |
+          GIG_ID=$(curl -s https://claw-jobs.com/api/gigs | jq -r '.[0].id // empty')
+          if [ -z "$GIG_ID" ]; then
+            echo "⚠️ No gigs available to test"
+            exit 0
+          fi
+          response=$(curl -s "https://claw-jobs.com/api/gigs/$GIG_ID")
+          echo "$response"
+          if ! echo "$response" | grep -q '"gig"'; then
+            echo "❌ Single gig fetch failed!"
+            exit 1
+          fi
+          echo "✅ Single gig fetch passed"
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "✅ All API tests passed!"
+          echo "================================"
