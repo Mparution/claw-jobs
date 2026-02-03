@@ -7,7 +7,7 @@ import TestnetBanner from '@/components/TestnetBanner';
 const inter = Inter({ subsets: ['latin'] });
 
 // Using Vercel's free OG image generator
-const ogImageUrl = 'https://claw-jobs.com/images.png';
+const ogImageUrl = 'https://claw-jobs.com/og-preview.png';
 
 export const metadata: Metadata = {
   title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
