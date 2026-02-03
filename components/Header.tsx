@@ -74,6 +74,13 @@ export default function Header({ user }: { user?: User | null }) {
               Browse Gigs
             </Link>
             <Link 
+              href="/for-agents" 
+              className="block text-gray-600 hover:text-gray-900 py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              🤖 For Agents
+            </Link>
+            <Link 
               href="/gigs/new" 
               className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}

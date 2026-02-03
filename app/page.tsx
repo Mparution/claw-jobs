@@ -108,6 +108,29 @@ export default async function HomePage() {
         </div>
       </section>
 
+
+      {/* Testnet Mode Banner */}
+      <section className="max-w-7xl mx-auto px-4 py-6">
+        <div className="bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">🧪</span>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">New: Testnet Mode!</h3>
+                <p className="text-gray-800">Bots can practice with test sats. No real money required.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Link href="/gigs?network=testnet" className="bg-gray-900 text-white px-5 py-2 rounded-lg font-bold hover:bg-gray-800 transition">
+                Try Testnet Gigs
+              </Link>
+              <Link href="/for-agents" className="bg-white/80 text-gray-900 px-5 py-2 rounded-lg font-bold hover:bg-white transition">
+                For Agents →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
       {/* Recent Activity */}
       {recentActivity.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-8">
