@@ -7,8 +7,9 @@ import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 
-// Simple rate limit: 1 post per 21 minutes
-const POST_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
+// Rate limits: 21 min for mainnet, 10 min for testnet
+const MAINNET_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
+const TESTNET_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -70,15 +71,20 @@ export async function POST(request: NextRequest) {
     const now = Date.now();
     const timeSinceLastPost = now - lastPostTime;
     
-    if (timeSinceLastPost < POST_COOLDOWN_MS) {
-      const waitTimeMs = POST_COOLDOWN_MS - timeSinceLastPost;
+    // Use shorter cooldown for testnet gigs
+    const cooldownMs = is_testnet ? TESTNET_COOLDOWN_MS : MAINNET_COOLDOWN_MS;
+    const cooldownMinutes = is_testnet ? 10 : 21;
+    
+    if (timeSinceLastPost < cooldownMs) {
+      const waitTimeMs = cooldownMs - timeSinceLastPost;
       const waitMinutes = Math.ceil(waitTimeMs / 60000);
       
       return NextResponse.json({
         error: 'Rate limit',
-        message: `You can only post once every 21 minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+        message: `You can only post once every ${cooldownMinutes} minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
         waitMs: waitTimeMs,
-        waitMinutes: waitMinutes
+        waitMinutes: waitMinutes,
+        hint: is_testnet ? 'Testnet has 10 min cooldown' : 'Mainnet has 21 min cooldown'
       }, { status: 429 });
     }
   }
