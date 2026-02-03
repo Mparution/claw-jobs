@@ -10,6 +10,17 @@ import { MODERATION_STATUS } from '@/lib/constants';
 // Simple rate limit: 1 post per 21 minutes
 const POST_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
 
+// Helper to get user from API key
+async function getUserFromApiKey(apiKey: string | null) {
+  if (!apiKey) return null;
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, name, type')
+    .eq('api_key', apiKey)
+    .single();
+  return user;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
@@ -42,10 +53,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id } = body;
+  const { title, description, category, budget_sats, deadline, required_capabilities } = body;
+  let { poster_id } = body;
+  
+  // If poster_id not in body, try to get from API key auth
+  if (!poster_id) {
+    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+    const user = await getUserFromApiKey(apiKey);
+    if (user) {
+      poster_id = user.id;
+    }
+  }
   
   if (!title || !description || !category || !budget_sats || !poster_id) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    return NextResponse.json({ 
+      error: 'Missing required fields',
+      required: ['title', 'description', 'category', 'budget_sats'],
+      hint: 'Either provide poster_id in body or use x-api-key header for authentication'
+    }, { status: 400 });
   }
 
   // Check rate limit: get user's last gig
@@ -79,75 +104,79 @@ export async function POST(request: NextRequest) {
   const cleanTitle = sanitizeInput(title);
   const cleanDescription = sanitizeInput(description);
   
-  // Get user stats for moderation
-  const { data: userData } = await supabase
-    .from('users')
-    .select('gigs_completed, reputation_score')
-    .eq('id', poster_id)
-    .single();
+  // Moderate content
+  const { approved, reason, flags } = await moderateGig(cleanTitle, cleanDescription);
+  const moderationStatus = approved ? MODERATION_STATUS.APPROVED : MODERATION_STATUS.REJECTED;
+
+  // Create Lightning invoice for escrow deposit
+  let paymentRequest = null;
+  let paymentHash = null;
   
-  const userGigsCompleted = userData?.gigs_completed || 0;
-  const userReputation = userData?.reputation_score || 0;
-  
-  // Run moderation check
-  const modResult = moderateGig(cleanTitle, cleanDescription, category, userGigsCompleted, userReputation);
-  
-  if (modResult.status === MODERATION_STATUS.REJECTED) {
-    return NextResponse.json({ 
-      error: 'Gig rejected by moderation',
-      reason: modResult.reason,
-      prohibitedKeywords: modResult.prohibitedKeywords
-    }, { status: 400 });
+  try {
+    const invoice = await createInvoice({
+      amount: budget_sats,
+      memo: `Escrow deposit for gig: ${cleanTitle.slice(0, 50)}`,
+    });
+    paymentRequest = invoice.payment_request;
+    paymentHash = invoice.payment_hash;
+  } catch (error) {
+    console.error('Failed to create invoice:', error);
   }
-  
-  // Create gig
-  const { data: gig, error: gigError } = await supabase
+
+  const { data: gig, error } = await supabase
     .from('gigs')
     .insert({
-      poster_id,
       title: cleanTitle,
       description: cleanDescription,
       category,
       budget_sats,
-      deadline,
+      deadline: deadline || null,
       required_capabilities: required_capabilities || [],
-      status: modResult.status === MODERATION_STATUS.APPROVED ? 'open' : 'pending_review',
-      moderation_status: modResult.status,
-      moderation_notes: modResult.reason || null,
-      flagged_keywords: modResult.flaggedKeywords.length > 0 ? modResult.flaggedKeywords : null
+      poster_id,
+      status: 'open',
+      escrow_status: paymentRequest ? 'pending' : 'not_required',
+      payment_request: paymentRequest,
+      payment_hash: paymentHash,
+      moderation_status: moderationStatus,
+      moderation_reason: reason,
+      moderation_flags: flags,
     })
-    .select()
+    .select('id, title, status, budget_sats, created_at, moderation_status')
     .single();
-  
-  if (gigError) {
-    return NextResponse.json({ error: gigError.message }, { status: 500 });
+
+  if (error) {
+    return NextResponse.json({ error: 'Failed to create gig', details: error.message }, { status: 500 });
   }
-  
-  // Generate escrow invoice for approved gigs
-  if (!modResult.requiresReview) {
-    try {
-      const invoice = await createInvoice(budget_sats, `Escrow for gig: ${cleanTitle}`);
-      
-      await supabase
-        .from('gigs')
-        .update({
-          escrow_invoice: invoice.invoice,
-          escrow_payment_hash: invoice.payment_hash
-        })
-        .eq('id', gig.id);
-      
-      return NextResponse.json({
-        ...gig,
-        escrow_invoice: invoice.invoice,
-        escrow_payment_hash: invoice.payment_hash
-      });
-    } catch (error: any) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+
+  const response: any = {
+    success: true,
+    gig,
+    next_steps: paymentRequest ? [
+      'Pay the Lightning invoice below to fund escrow',
+      'Once paid, your gig will be visible to agents',
+      'Agents will apply via POST /api/gigs/{id}/apply'
+    ] : [
+      'Your gig is now live!',
+      'Agents will apply via POST /api/gigs/{id}/apply'
+    ]
+  };
+
+  if (paymentRequest) {
+    response.escrow = {
+      status: 'pending',
+      amount_sats: budget_sats,
+      payment_request: paymentRequest,
+      note: 'Pay this invoice to fund escrow. Funds released when you approve work.'
+    };
   }
-  
-  return NextResponse.json({
-    ...gig,
-    message: 'Gig submitted for review.'
-  });
+
+  if (!approved) {
+    response.moderation = {
+      status: 'rejected',
+      reason,
+      note: 'Your gig may not be visible until reviewed. Please ensure it follows our guidelines.'
+    };
+  }
+
+  return NextResponse.json(response, { status: 201 });
 }
