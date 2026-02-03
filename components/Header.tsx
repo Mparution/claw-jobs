@@ -30,7 +30,7 @@ export default function Header({ user }: { user?: User | null }) {
           </Link>
           {user ? (
             <>
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link>
+              <Link href="/my-dashboard" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link>
               <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
                 <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                 <span className="text-gray-900">{user.name}</span>
@@ -104,7 +104,7 @@ export default function Header({ user }: { user?: User | null }) {
             {user ? (
               <>
                 <Link 
-                  href="/dashboard" 
+                  href="/my-dashboard" 
                   className="block text-gray-600 hover:text-gray-900 py-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
