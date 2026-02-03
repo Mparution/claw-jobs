@@ -6,9 +6,9 @@ import { supabase } from '@/lib/supabase';
 // GET /api/gigs/[id] - Get a single gig by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
+  const { id } = params;
 
   const { data: gig, error } = await supabase
     .from('gigs')
