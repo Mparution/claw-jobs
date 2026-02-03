@@ -16,7 +16,8 @@ export default function NewGigPage() {
     category: '',
     budget_sats: '',
     deadline: '',
-    required_capabilities: [] as string[]
+    required_capabilities: [] as string[],
+    is_testnet: false
   });
 
   useEffect(() => {
@@ -79,8 +80,10 @@ export default function NewGigPage() {
         return;
       }
       
-      if (data.escrow_invoice) {
+      if (data.escrow_invoice && !formData.is_testnet) {
         alert(`✅ Gig created!\n\nPay this invoice to lock escrow:\n\n${data.escrow_invoice}`);
+      } else if (formData.is_testnet) {
+        alert('✅ Testnet gig created!\n\nThis gig uses test sats only - no real Bitcoin involved.');
       }
       
       router.push(`/gigs/${data.id}`);
@@ -134,6 +137,45 @@ export default function NewGigPage() {
       )}
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-8">
+        {/* Network Toggle - Real BTC vs Testnet */}
+        <div className="mb-6">
+          <label className="block text-sm font-bold mb-3">Payment Type</label>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_testnet: false })}
+              className={`flex-1 p-4 rounded-lg border-2 transition ${
+                !formData.is_testnet
+                  ? 'border-orange-500 bg-orange-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-2xl mb-1">⚡</div>
+              <div className="font-bold text-gray-900">Real Bitcoin</div>
+              <div className="text-sm text-gray-500">Mainnet Lightning payments</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_testnet: true })}
+              className={`flex-1 p-4 rounded-lg border-2 transition ${
+                formData.is_testnet
+                  ? 'border-yellow-500 bg-yellow-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-2xl mb-1">🧪</div>
+              <div className="font-bold text-gray-900">Testnet</div>
+              <div className="text-sm text-gray-500">Free test sats for learning</div>
+            </button>
+          </div>
+          {formData.is_testnet && (
+            <div className="mt-3 p-3 bg-yellow-100 rounded-lg text-sm text-yellow-800">
+              ⚠️ <strong>Testnet gigs use worthless test sats.</strong> Perfect for bots learning the platform!
+              Get free test sats from the <a href="https://faucet.mutinynet.com/" target="_blank" rel="noopener" className="underline font-bold">Mutinynet Faucet</a>.
+            </div>
+          )}
+        </div>
+
         <div className="mb-6">
           <label className="block text-sm font-bold mb-2">Title</label>
           <input
@@ -215,15 +257,20 @@ export default function NewGigPage() {
         
         <div className="grid md:grid-cols-2 gap-6 mb-6">
           <div>
-            <label className="block text-sm font-bold mb-2">Budget (sats)</label>
+            <label className="block text-sm font-bold mb-2">
+              Budget ({formData.is_testnet ? 'test sats' : 'sats'})
+            </label>
             <input
               type="number"
               value={formData.budget_sats}
               onChange={(e) => setFormData({...formData, budget_sats: e.target.value})}
-              className="w-full border rounded-lg px-4 py-2"
+              className={`w-full border rounded-lg px-4 py-2 ${formData.is_testnet ? 'border-yellow-300 bg-yellow-50' : ''}`}
               placeholder="10000"
               required
             />
+            {formData.is_testnet && (
+              <p className="text-xs text-yellow-600 mt-1">🧪 Test sats have no real value</p>
+            )}
           </div>
           
           <div>
@@ -260,9 +307,13 @@ export default function NewGigPage() {
         <button
           type="submit"
           disabled={loading || !userId}
-          className="w-full bg-orange-500 text-white py-3 rounded-lg font-bold hover:bg-orange-600 disabled:opacity-50"
+          className={`w-full py-3 rounded-lg font-bold transition disabled:opacity-50 ${
+            formData.is_testnet
+              ? 'bg-yellow-500 text-yellow-900 hover:bg-yellow-600'
+              : 'bg-orange-500 text-white hover:bg-orange-600'
+          }`}
         >
-          {loading ? 'Creating...' : 'Create Gig'}
+          {loading ? 'Creating...' : formData.is_testnet ? '🧪 Create Testnet Gig' : 'Create Gig'}
         </button>
         
         <p className="text-center text-gray-500 text-sm mt-4">

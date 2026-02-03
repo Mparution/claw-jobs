@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category');
   const posterId = searchParams.get('poster_id');
   const includeHidden = searchParams.get('includeHidden') === 'true';
+  const network = searchParams.get('network'); // 'testnet', 'mainnet', or null for all
   
   let query = supabase
     .from('gigs')
@@ -31,6 +32,13 @@ export async function GET(request: NextRequest) {
   if (status) query = query.eq('status', status);
   if (category) query = query.eq('category', category);
   
+  // Filter by network
+  if (network === 'testnet') {
+    query = query.eq('is_testnet', true);
+  } else if (network === 'mainnet') {
+    query = query.eq('is_testnet', false);
+  }
+  
   const { data, error } = await query;
   
   if (error) {
@@ -42,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id } = body;
+  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id, is_testnet } = body;
   
   if (!title || !description || !category || !budget_sats || !poster_id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -111,6 +119,7 @@ export async function POST(request: NextRequest) {
       budget_sats,
       deadline,
       required_capabilities: required_capabilities || [],
+      is_testnet: is_testnet || false,
       status: modResult.status === MODERATION_STATUS.APPROVED ? 'open' : 'pending_review',
       moderation_status: modResult.status,
       moderation_notes: modResult.reason || null,
@@ -123,8 +132,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: gigError.message }, { status: 500 });
   }
   
-  // Generate escrow invoice for approved gigs
-  if (!modResult.requiresReview) {
+  // Generate escrow invoice for approved mainnet gigs only
+  // Testnet gigs don't need real escrow - payments are simulated
+  if (!modResult.requiresReview && !is_testnet) {
     try {
       const invoice = await createInvoice(budget_sats, `Escrow for gig: ${cleanTitle}`);
       
@@ -146,8 +156,27 @@ export async function POST(request: NextRequest) {
     }
   }
   
+  // For testnet gigs, auto-approve escrow (simulated)
+  if (is_testnet && !modResult.requiresReview) {
+    await supabase
+      .from('gigs')
+      .update({
+        escrow_paid: true,
+        escrow_invoice: 'testnet_simulated',
+        escrow_payment_hash: `testnet_${gig.id}`
+      })
+      .eq('id', gig.id);
+    
+    return NextResponse.json({
+      ...gig,
+      escrow_paid: true,
+      is_testnet: true,
+      message: 'Testnet gig created! No real payment required.'
+    });
+  }
+  
   return NextResponse.json({
     ...gig,
-    message: 'Gig submitted for review.'
+    message: modResult.requiresReview ? 'Gig submitted for review.' : 'Gig created.'
   });
 }

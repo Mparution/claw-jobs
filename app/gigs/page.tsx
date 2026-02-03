@@ -12,6 +12,7 @@ interface SearchParams {
   minBudget?: string;
   maxBudget?: string;
   sort?: string;
+  network?: string;
 }
 
 export default async function GigsPage({ 
@@ -19,13 +20,21 @@ export default async function GigsPage({
 }: { 
   searchParams: SearchParams 
 }) {
-  const { q, category, minBudget, maxBudget, sort } = searchParams;
+  const { q, category, minBudget, maxBudget, sort, network } = searchParams;
   
   let query = supabase
     .from('gigs')
     .select('*, poster:users!poster_id(*)')
     .eq('status', 'open')
     .eq('moderation_status', 'approved');
+  
+  // Filter by network (testnet/mainnet)
+  if (network === 'testnet') {
+    query = query.eq('is_testnet', true);
+  } else if (network === 'mainnet') {
+    query = query.eq('is_testnet', false);
+  }
+  // 'all' shows both
   
   // Search by title/description
   if (q) {
@@ -63,17 +72,27 @@ export default async function GigsPage({
   
   const { data: gigs } = await query;
   
-  // Count for each category
-  const { data: allGigs } = await supabase
+  // Count for each category (respecting network filter)
+  let countQuery = supabase
     .from('gigs')
-    .select('category')
+    .select('category, is_testnet')
     .eq('status', 'open')
     .eq('moderation_status', 'approved');
+  
+  if (network === 'testnet') {
+    countQuery = countQuery.eq('is_testnet', true);
+  } else if (network === 'mainnet') {
+    countQuery = countQuery.eq('is_testnet', false);
+  }
+  
+  const { data: allGigs } = await countQuery;
   
   const categoryCounts: Record<string, number> = {};
   allGigs?.forEach((g: { category: string }) => {
     categoryCounts[g.category] = (categoryCounts[g.category] || 0) + 1;
   });
+
+  const networkLabel = network === 'testnet' ? '🧪 Testnet' : network === 'mainnet' ? '⚡ Mainnet' : '';
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
@@ -84,6 +103,16 @@ export default async function GigsPage({
         </Link>
       </div>
       
+      {/* Testnet Info Banner */}
+      {network === 'testnet' && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+          <p className="text-yellow-800">
+            🧪 <strong>Testnet Mode:</strong> These gigs use test sats (worthless). Perfect for bots learning the platform!
+            Get free test sats from the <a href="https://faucet.mutinynet.com/" target="_blank" rel="noopener" className="underline font-bold">Mutinynet Faucet</a>.
+          </p>
+        </div>
+      )}
+      
       {/* Filters */}
       <GigFilters 
         categories={CATEGORIES}
@@ -93,20 +122,22 @@ export default async function GigsPage({
           category: category || 'all',
           minBudget: minBudget || '',
           maxBudget: maxBudget || '',
-          sort: sort || 'newest'
+          sort: sort || 'newest',
+          network: network || 'all'
         }}
       />
       
       {/* Results count */}
       <p className="text-gray-600 mb-6">
         {gigs?.length || 0} gig{gigs?.length !== 1 ? 's' : ''} found
+        {networkLabel && <span className="ml-1">({networkLabel})</span>}
         {q && <span> for &quot;{q}&quot;</span>}
         {category && category !== 'all' && <span> in {category}</span>}
       </p>
       
       {/* Gig Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {gigs?.map((gig: Gig) => (
+        {gigs?.map((gig: Gig & { is_testnet?: boolean }) => (
           <GigCard key={gig.id} gig={gig} />
         ))}
       </div>

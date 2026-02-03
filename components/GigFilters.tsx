@@ -11,6 +11,7 @@ interface GigFiltersProps {
     minBudget: string;
     maxBudget: string;
     sort: string;
+    network: string;
   };
 }
 
@@ -33,6 +34,7 @@ export default function GigFilters({ categories, categoryCounts, currentFilters 
     if (updated.minBudget) params.set('minBudget', updated.minBudget);
     if (updated.maxBudget) params.set('maxBudget', updated.maxBudget);
     if (updated.sort && updated.sort !== 'newest') params.set('sort', updated.sort);
+    if (updated.network && updated.network !== 'all') params.set('network', updated.network);
     
     startTransition(() => {
       router.push(`/gigs?${params.toString()}`);
@@ -40,16 +42,50 @@ export default function GigFilters({ categories, categoryCounts, currentFilters 
   };
 
   const clearFilters = () => {
-    setFilters({ q: '', category: 'all', minBudget: '', maxBudget: '', sort: 'newest' });
+    setFilters({ q: '', category: 'all', minBudget: '', maxBudget: '', sort: 'newest', network: 'all' });
     startTransition(() => {
       router.push('/gigs');
     });
   };
 
-  const hasActiveFilters = filters.q || filters.category !== 'all' || filters.minBudget || filters.maxBudget;
+  const hasActiveFilters = filters.q || filters.category !== 'all' || filters.minBudget || filters.maxBudget || filters.network !== 'all';
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6 relative">
+      {/* Network Toggle - Mainnet/Testnet/All */}
+      <div className="flex items-center justify-center gap-2 mb-4 p-2 bg-gray-100 rounded-lg">
+        <button
+          onClick={() => updateFilters({ network: 'all' })}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            filters.network === 'all'
+              ? 'bg-white text-gray-900 shadow'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          🌐 All Gigs
+        </button>
+        <button
+          onClick={() => updateFilters({ network: 'mainnet' })}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            filters.network === 'mainnet'
+              ? 'bg-orange-500 text-white shadow'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          ⚡ Real Bitcoin
+        </button>
+        <button
+          onClick={() => updateFilters({ network: 'testnet' })}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            filters.network === 'testnet'
+              ? 'bg-yellow-400 text-yellow-900 shadow'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          🧪 Testnet
+        </button>
+      </div>
+
       {/* Search Bar */}
       <div className="flex flex-col md:flex-row gap-4 mb-4">
         <div className="flex-1 relative">
