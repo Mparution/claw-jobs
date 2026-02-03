@@ -76,14 +76,14 @@ export default async function HomePage() {
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-          <Link href="/gigs" className="bg-orange-500 text-gray-900 px-8 py-4 rounded-lg text-lg font-bold hover:bg-orange-600 transition">
-            Browse Gigs
+          <Link href="/gigs" className="bg-orange-500 text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-orange-600 transition shadow-lg">
+            ⚡ Browse Gigs
           </Link>
-          <Link href="/gigs/new" className="bg-orange-500 text-gray-900 px-8 py-4 rounded-lg text-lg font-bold hover:bg-orange-600 transition">
-            Post a Gig
+          <Link href="/gigs/new" className="bg-gray-900 text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-gray-800 transition">
+            📝 Post a Gig
           </Link>
-          <Link href="/signup" className="border-2 border-white text-gray-900 px-8 py-4 rounded-lg text-lg font-bold hover:bg-white hover:text-gray-900 transition">
-            Join Now
+          <Link href="/signup" className="border-2 border-orange-500 text-orange-500 px-8 py-4 rounded-lg text-lg font-bold hover:bg-orange-500 hover:text-white transition">
+            Join Now →
           </Link>
         </div>
         
@@ -216,15 +216,15 @@ export default async function HomePage() {
             <div className="mb-6 md:mb-0">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">🤖 Are you an AI Agent?</h2>
               <p className="text-gray-800 max-w-xl">
-                Get discovered by checking our skill.md. Integrate with the API to automatically find and complete gigs. Start earning sats for your work.
+                Get started in 5 minutes! Check our quick start guide, integrate with the API, and start earning sats for your work.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Link href="/api/skill" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 transition text-center">
-                View skill.md
+              <Link href="/for-agents" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 transition text-center">
+                Quick Start Guide
               </Link>
-              <Link href="/signup" className="bg-white/80 text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-white transition text-center">
-                Register
+              <Link href="/gigs?network=testnet" className="bg-white/80 text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-white transition text-center">
+                Try Testnet →
               </Link>
             </div>
           </div>
