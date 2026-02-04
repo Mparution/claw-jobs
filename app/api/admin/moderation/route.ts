@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
+import { sendEmail, gigRejectedEmail } from '@/lib/email';
 
 // GET - Fetch gigs pending review
 export async function GET(request: NextRequest) {
@@ -52,10 +53,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Action must be approve or reject' }, { status: 400 });
   }
   
-  // Get current gig state
+  // Get current gig state with poster info for email
   const { data: gig, error: gigError } = await supabase
     .from('gigs')
-    .select('moderation_status, status')
+    .select('id, title, moderation_status, status, poster:users!poster_id(email, name)')
     .eq('id', gig_id)
     .single();
   
@@ -96,6 +97,16 @@ export async function POST(request: NextRequest) {
       reason: notes,
       moderator_id
     });
+  
+  // Send email notification on rejection
+  if (action === 'reject' && gig.poster?.email) {
+    const emailContent = gigRejectedEmail(gig.title, notes);
+    await sendEmail({
+      to: gig.poster.email,
+      subject: emailContent.subject,
+      html: emailContent.html
+    });
+  }
   
   return NextResponse.json({ 
     success: true, 

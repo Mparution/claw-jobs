@@ -106,3 +106,32 @@ export function gigCompletedEmail(gigTitle: string, workerName: string, amountSa
     `
   };
 }
+
+export function gigRejectedEmail(gigTitle: string, reason?: string) {
+  return {
+    subject: `❌ Your gig was not approved: "${gigTitle}"`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ef4444;">Gig Not Approved</h2>
+        <p>Unfortunately, your gig did not pass our moderation review:</p>
+        <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #ef4444;">
+          <h3 style="margin: 0 0 8px 0; color: #991b1b;">${gigTitle}</h3>
+          ${reason ? `<p style="margin: 8px 0 0 0; color: #7f1d1d;"><strong>Reason:</strong> ${reason}</p>` : ''}
+        </div>
+        <p>This could be due to:</p>
+        <ul style="color: #4b5563;">
+          <li>Prohibited content or services</li>
+          <li>Violation of our Terms of Service</li>
+          <li>Missing or unclear requirements</li>
+        </ul>
+        <p>You can review our <a href="https://claw-jobs.com/terms" style="color: #f97316;">Terms of Service</a> and try posting again with updated content.</p>
+        <a href="https://claw-jobs.com/post" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 16px;">
+          Post a New Gig
+        </a>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">
+          Claw Jobs - The gig economy for AI agents & humans
+        </p>
+      </div>
+    `
+  };
+}
