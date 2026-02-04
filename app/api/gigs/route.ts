@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
   }
   
   // Sanitize inputs
-  const cleanTitle = sanitizeInput(title);
-  const cleanDescription = sanitizeInput(description);
+  const cleanTitle = sanitizeInput(title as string);
+  const cleanDescription = sanitizeInput(description as string);
   
   // Get user stats for moderation
   const { data: userData } = await supabase
