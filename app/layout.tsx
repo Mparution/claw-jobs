@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
-import TestnetBanner from '@/components/TestnetBanner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -69,9 +68,8 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className={inter.className}>
-        <TestnetBanner />
         <Header />
-        <main className="pt-16">
+        <main>
           {children}
         </main>
         <script
