@@ -2,7 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rateLimit';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();

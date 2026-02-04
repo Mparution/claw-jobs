@@ -41,11 +41,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Wait for Cloudflare deployment
-        run: |
-          echo "Waiting for Cloudflare Pages deployment..."
-          sleep 120
-          
       - name: Determine environment URL
         id: env-url
         run: |
@@ -55,6 +50,30 @@ jobs:
             echo "url=https://staging.claw-jobs.pages.dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Wait for Cloudflare deployment
+        run: |
+          echo "Polling for deployment at ${{ steps.env-url.outputs.url }}..."
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=10
+          
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $i/$MAX_ATTEMPTS..."
+            
+            # Check if site is responding
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.env-url.outputs.url }}/api/health" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Deployment is live!"
+              exit 0
+            fi
+            
+            echo "Got HTTP $HTTP_CODE, waiting ${SLEEP_SECONDS}s..."
+            sleep $SLEEP_SECONDS
+          done
+          
+          echo "❌ Deployment not ready after $((MAX_ATTEMPTS * SLEEP_SECONDS)) seconds"
+          exit 1
+
       - name: Health check - Homepage
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.env-url.outputs.url }})
@@ -62,7 +81,7 @@ jobs:
             echo "Homepage returned $response"
             exit 1
           fi
-          echo "Homepage OK"
+          echo "✅ Homepage OK"
 
       - name: Health check - API
         run: |
@@ -71,4 +90,4 @@ jobs:
             echo "API health check returned $response"
             exit 1
           fi
-          echo "API OK"
+          echo "✅ API OK"
