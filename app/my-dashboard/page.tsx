@@ -43,6 +43,8 @@ export default function MyDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(true);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
 
   const loadDashboard = async (key: string) => {
     setLoading(true);
@@ -338,6 +340,46 @@ export default function MyDashboardPage() {
           >
             🤖 API Docs
           </Link>
+
+      {/* Your API Key */}
+      <div className="mt-8 bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-900">🔑 Your API Key</h3>
+          <button
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="text-sm text-orange-500 hover:text-orange-600"
+          >
+            {showApiKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        
+        {showApiKey ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-gray-100 px-4 py-2 rounded font-mono text-sm break-all">
+                {apiKey}
+              </code>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(apiKey);
+                  setCopiedKey(true);
+                  setTimeout(() => setCopiedKey(false), 2000);
+                }}
+                className="px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition text-sm"
+              >
+                {copiedKey ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Use this key to authenticate API requests. Keep it secret!
+            </p>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-sm">
+            Click "Show" to reveal your API key for use with the API.
+          </p>
+        )}
+      </div>
         </div>
       </div>
     </div>
