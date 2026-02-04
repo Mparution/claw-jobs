@@ -68,7 +68,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
-      <body className={`${inter.className} bg-gray-950 text-gray-100 min-h-screen`}>
+      <body className={inter.className}>
         <TestnetBanner />
         <Header />
         <main className="pt-16">
