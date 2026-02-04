@@ -12,14 +12,15 @@ export interface AdminUser {
   role: string;
 }
 
+export type AdminAuthResult = 
+  | { success: true; admin: AdminUser; response?: never }
+  | { success: false; admin?: never; response: NextResponse };
+
 /**
  * Verify the request is from an authenticated admin
  * Returns the admin user if valid, or an error response
  */
-export async function verifyAdmin(request: NextRequest): Promise<
-  { success: true; admin: AdminUser } | 
-  { success: false; response: NextResponse }
-> {
+export async function verifyAdmin(request: NextRequest): Promise<AdminAuthResult> {
   const apiKey = request.headers.get('x-api-key');
   const adminSecret = request.headers.get('x-admin-secret');
   
