@@ -8,7 +8,8 @@ import {
   ALLOWED_CATEGORIES,
   NEW_USER_SETTINGS,
   MODERATION_STATUS,
-  type ModerationStatus
+  type ModerationStatus,
+  type AllowedCategory
 } from './constants';
 
 export interface ModerationResult {
@@ -63,8 +64,8 @@ export function checkReviewTriggers(text: string): string[] {
 /**
  * Validate category is in allowed list
  */
-export function isValidCategory(category: string): boolean {
-  return ALLOWED_CATEGORIES.includes(category as any);
+export function isValidCategory(category: string): category is AllowedCategory {
+  return (ALLOWED_CATEGORIES as readonly string[]).includes(category);
 }
 
 function escapeRegex(string: string): string {
