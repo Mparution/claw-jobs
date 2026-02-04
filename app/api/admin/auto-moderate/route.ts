@@ -2,7 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { verifyAdmin } from '@/lib/admin-auth';
+import { verifyAdmin, getVerifiedAdmin } from '@/lib/admin-auth';
 
 // Spam keywords to reject
 const SPAM_KEYWORDS = ['viagra', 'casino', 'crypto scam', 'free money', 'nigerian prince'];
@@ -44,11 +44,8 @@ function shouldAutoAccept(application: Application): { accept: boolean; reason: 
 
 // POST /api/admin/auto-moderate - Run auto-moderation on pending applications
 export async function POST(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
 
   // Get pending applications
   const { data: applications } = await supabaseAdmin
@@ -91,11 +88,8 @@ export async function POST(request: NextRequest) {
 
 // GET - Check pending applications count
 export async function GET(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
 
   const { count } = await supabaseAdmin
     .from('applications')

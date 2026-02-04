@@ -4,15 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { sendEmail, gigRejectedEmail } from '@/lib/email';
-import { verifyAdmin } from '@/lib/admin-auth';
+import { verifyAdmin, getVerifiedAdmin } from '@/lib/admin-auth';
 
 // GET - Fetch gigs pending review
 export async function GET(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
@@ -28,18 +25,18 @@ export async function GET(request: NextRequest) {
   }
   
   // Also get report counts
-  const gigIds = data.map((g: any) => g.id);
+  const gigIds = data.map((g: { id: string }) => g.id);
   const { data: reportCounts } = await supabase
     .from('reports')
     .select('gig_id')
     .in('gig_id', gigIds);
   
   const countsMap: Record<string, number> = {};
-  reportCounts?.forEach((r: any) => {
+  reportCounts?.forEach((r: { gig_id: string }) => {
     countsMap[r.gig_id] = (countsMap[r.gig_id] || 0) + 1;
   });
   
-  const gigsWithCounts = data.map((gig: any) => ({
+  const gigsWithCounts = data.map((gig: { id: string }) => ({
     ...gig,
     report_count: countsMap[gig.id] || 0
   }));
@@ -49,12 +46,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Approve or reject a gig
 export async function POST(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
-  const admin = authResult.admin;
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
+  const admin = getVerifiedAdmin();
 
   const body = await request.json();
   const { gig_id, action, notes } = body;

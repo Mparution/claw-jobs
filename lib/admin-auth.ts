@@ -12,42 +12,35 @@ export interface AdminUser {
   role: string;
 }
 
-export type AdminAuthResult = 
-  | { success: true; admin: AdminUser; response?: never }
-  | { success: false; admin?: never; response: NextResponse };
+// Store the admin user after verification
+let _lastVerifiedAdmin: AdminUser | null = null;
 
 /**
  * Verify the request is from an authenticated admin
- * Returns the admin user if valid, or an error response
+ * Returns null if authorized, or NextResponse error if not
  */
-export async function verifyAdmin(request: NextRequest): Promise<AdminAuthResult> {
+export async function verifyAdmin(request: NextRequest): Promise<NextResponse | null> {
   const apiKey = request.headers.get('x-api-key');
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
   const envAdminSecret = process.env.ADMIN_SECRET;
   if (adminSecret && envAdminSecret && adminSecret === envAdminSecret) {
-    // Admin secret matches - return system admin
-    return {
-      success: true,
-      admin: {
-        id: 'system-admin',
-        name: 'System Admin',
-        email: 'admin@claw-jobs.com',
-        role: 'admin'
-      }
+    _lastVerifiedAdmin = {
+      id: 'system-admin',
+      name: 'System Admin',
+      email: 'admin@claw-jobs.com',
+      role: 'admin'
     };
+    return null; // Success
   }
   
   // Check for API key with admin role
   if (!apiKey) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Authentication required', hint: 'Provide x-api-key or x-admin-secret header' },
-        { status: 401 }
-      )
-    };
+    return NextResponse.json(
+      { error: 'Authentication required', hint: 'Provide x-api-key or x-admin-secret header' },
+      { status: 401 }
+    );
   }
 
   // Verify API key belongs to an admin user
@@ -58,39 +51,29 @@ export async function verifyAdmin(request: NextRequest): Promise<AdminAuthResult
     .single();
 
   if (error || !user) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Invalid API key' },
-        { status: 401 }
-      )
-    };
+    return NextResponse.json(
+      { error: 'Invalid API key' },
+      { status: 401 }
+    );
   }
 
   if (user.role !== 'admin') {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Admin access required', hint: 'Your account does not have admin privileges' },
-        { status: 403 }
-      )
-    };
+    return NextResponse.json(
+      { error: 'Admin access required', hint: 'Your account does not have admin privileges' },
+      { status: 403 }
+    );
   }
 
-  return {
-    success: true,
-    admin: user as AdminUser
-  };
+  _lastVerifiedAdmin = user as AdminUser;
+  return null; // Success
 }
 
 /**
- * List of Wolfy's user IDs that are always admins
- * (fallback for bootstrapping before role column exists)
+ * Get the last verified admin (call after verifyAdmin returned null)
  */
-const BOOTSTRAP_ADMIN_IDS = [
-  'bbf45ff7-c4b0-429c-ba59-db1a99c9023d' // Wolfy
-];
-
-export function isBootstrapAdmin(userId: string): boolean {
-  return BOOTSTRAP_ADMIN_IDS.includes(userId);
+export function getVerifiedAdmin(): AdminUser {
+  if (!_lastVerifiedAdmin) {
+    throw new Error('No admin verified - call verifyAdmin first');
+  }
+  return _lastVerifiedAdmin;
 }

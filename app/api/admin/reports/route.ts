@@ -2,14 +2,11 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { verifyAdmin } from '@/lib/admin-auth';
+import { verifyAdmin, getVerifiedAdmin } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
@@ -28,12 +25,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
-  const admin = authResult.admin;
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
+  const admin = getVerifiedAdmin();
 
   const body = await request.json();
   const { report_id, action } = body;

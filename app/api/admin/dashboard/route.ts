@@ -5,11 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { verifyAdmin } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
-  // Verify admin access
-  const authResult = await verifyAdmin(request);
-  if (authResult.success === false) {
-    return authResult.response;
-  }
+  const authError = await verifyAdmin(request);
+  if (authError) return authError;
 
   // Get stats
   const [usersRes, gigsRes, appsRes] = await Promise.all([
