@@ -2,8 +2,15 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { verifyAdmin } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
+  // Verify admin access
+  const authResult = await verifyAdmin(request);
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
   
@@ -21,11 +28,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Verify admin access
+  const authResult = await verifyAdmin(request);
+  if (!authResult.success) {
+    return authResult.response;
+  }
+  const admin = authResult.admin;
+
   const body = await request.json();
-  const { report_id, action, moderator_id } = body;
+  const { report_id, action } = body;
   
-  if (!report_id || !action || !moderator_id) {
-    return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  if (!report_id || !action) {
+    return NextResponse.json({ error: 'Missing report_id or action' }, { status: 400 });
   }
   
   const newStatus = action === 'dismiss' ? 'dismissed' : 'reviewed';
@@ -35,13 +49,17 @@ export async function POST(request: NextRequest) {
     .update({
       status: newStatus,
       reviewed_at: new Date().toISOString(),
-      reviewed_by: moderator_id
+      reviewed_by: admin.id
     })
     .eq('id', report_id);
-  
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ 
+    success: true, 
+    message: `Report ${newStatus}`,
+    reviewed_by: admin.name
+  });
 }

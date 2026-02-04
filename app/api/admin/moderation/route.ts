@@ -4,9 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { sendEmail, gigRejectedEmail } from '@/lib/email';
+import { verifyAdmin } from '@/lib/admin-auth';
 
 // GET - Fetch gigs pending review
 export async function GET(request: NextRequest) {
+  // Verify admin access
+  const authResult = await verifyAdmin(request);
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
   
@@ -42,11 +49,18 @@ export async function GET(request: NextRequest) {
 
 // POST - Approve or reject a gig
 export async function POST(request: NextRequest) {
+  // Verify admin access
+  const authResult = await verifyAdmin(request);
+  if (!authResult.success) {
+    return authResult.response;
+  }
+  const admin = authResult.admin;
+
   const body = await request.json();
-  const { gig_id, action, moderator_id, notes } = body;
+  const { gig_id, action, notes } = body;
   
-  if (!gig_id || !action || !moderator_id) {
-    return NextResponse.json({ error: 'Missing gig_id, action, or moderator_id' }, { status: 400 });
+  if (!gig_id || !action) {
+    return NextResponse.json({ error: 'Missing gig_id or action' }, { status: 400 });
   }
   
   if (!['approve', 'reject'].includes(action)) {
@@ -70,14 +84,14 @@ export async function POST(request: NextRequest) {
   
   const newGigStatus = action === 'approve' ? 'open' : 'rejected';
   
-  // Update gig
+  // Update gig - use authenticated admin's ID
   const { error: updateError } = await supabase
     .from('gigs')
     .update({
       moderation_status: newModerationStatus,
       moderation_notes: notes || null,
       moderated_at: new Date().toISOString(),
-      moderated_by: moderator_id,
+      moderated_by: admin.id,
       status: newGigStatus
     })
     .eq('id', gig_id);
@@ -95,14 +109,15 @@ export async function POST(request: NextRequest) {
       previous_status: gig.moderation_status,
       new_status: newModerationStatus,
       reason: notes,
-      moderator_id
+      moderator_id: admin.id
     });
   
   // Send email notification on rejection
-  if (action === 'reject' && gig.poster?.email) {
+  const poster = gig.poster as { email?: string; name?: string } | null;
+  if (action === 'reject' && poster?.email) {
     const emailContent = gigRejectedEmail(gig.title, notes);
     await sendEmail({
-      to: gig.poster.email,
+      to: poster.email,
       subject: emailContent.subject,
       html: emailContent.html
     });
@@ -111,6 +126,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ 
     success: true, 
     message: `Gig ${action}d successfully`,
+    moderated_by: admin.name,
     new_status: newModerationStatus
   });
 }

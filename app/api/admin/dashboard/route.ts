@@ -1,9 +1,16 @@
 export const runtime = 'edge';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { verifyAdmin } from '@/lib/admin-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Verify admin access
+  const authResult = await verifyAdmin(request);
+  if (!authResult.success) {
+    return authResult.response;
+  }
+
   // Get stats
   const [usersRes, gigsRes, appsRes] = await Promise.all([
     supabaseAdmin.from('users').select('id', { count: 'exact' }),
@@ -26,11 +33,16 @@ export async function GET() {
     .limit(10);
 
   // Get GitHub issues
-  let issues: any[] = [];
+  let issues: Array<{ number: number; title: string; state: string }> = [];
   try {
     const ghRes = await fetch('https://api.github.com/repos/Mparution/claw-jobs/issues?state=open&per_page=10');
     if (ghRes.ok) {
-      issues = await ghRes.json();
+      const data = await ghRes.json();
+      issues = data.map((i: { number: number; title: string; state: string }) => ({ 
+        number: i.number, 
+        title: i.title, 
+        state: i.state 
+      }));
     }
   } catch (e) {
     console.error('Failed to fetch GitHub issues:', e);
@@ -45,7 +57,7 @@ export async function GET() {
     },
     pending: pending || [],
     feedback: feedback || [],
-    issues: issues.map((i: any) => ({ number: i.number, title: i.title, state: i.state })),
+    issues,
     updated_at: new Date().toISOString()
   });
 }

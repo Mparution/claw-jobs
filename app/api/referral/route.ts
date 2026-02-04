@@ -14,30 +14,32 @@ export async function GET(request: NextRequest) {
     }, { status: 401 });
   }
 
-  const { data: user } = await supabaseAdmin
+  const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('id, name, referral_code, referral_count')
     .eq('api_key', apiKey)
     .single();
 
-  if (!user) {
+  if (error || !user) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
 
   // Generate referral code if doesn't exist
   let referralCode = user.referral_code;
   if (!referralCode) {
-    referralCode = `${user.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
+    // Safe null handling for name
+    const safeName = (user.name ?? 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
+    referralCode = `${safeName}-${Math.random().toString(36).slice(2, 6)}`;
     await supabaseAdmin
       .from('users')
       .update({ referral_code: referralCode })
       .eq('id', user.id);
   }
 
-  const referralCount = user.referral_count || 0;
+  const referralCount = user.referral_count ?? 0;
   
   // Reputation badges based on referrals
-  let badge = null;
+  let badge: { level: string; icon: string; label: string } | null = null;
   if (referralCount >= 20) badge = { level: 'ambassador', icon: '🌟', label: 'Community Ambassador' };
   else if (referralCount >= 10) badge = { level: 'advocate', icon: '⭐', label: 'Platform Advocate' };
   else if (referralCount >= 5) badge = { level: 'recruiter', icon: '🔗', label: 'Active Recruiter' };

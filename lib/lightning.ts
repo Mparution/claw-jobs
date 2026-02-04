@@ -5,6 +5,61 @@
 
 import { nwc } from '@getalby/sdk';
 
+// Type definitions for NWC responses
+interface MakeInvoiceResponse {
+  invoice: string;
+  payment_hash: string;
+  expires_at: number;
+}
+
+interface LookupInvoiceResponse {
+  preimage?: string;
+  settled?: boolean;
+  state?: string;
+}
+
+interface PayInvoiceResponse {
+  payment_hash?: string;
+  preimage: string;
+  amount: number;
+  fees_paid?: number;
+}
+
+interface GetBalanceResponse {
+  balance: number;
+}
+
+// Type definitions for our return values
+export interface CreateInvoiceResult {
+  invoice: string;
+  payment_hash: string;
+  expires_at: number;
+  mock?: boolean;
+  testnet?: boolean;
+}
+
+export interface CheckInvoiceResult {
+  settled: boolean;
+  state: string;
+  mock?: boolean;
+  testnet?: boolean;
+}
+
+export interface PayInvoiceResult {
+  payment_hash: string;
+  payment_preimage: string;
+  amount: number;
+  fee: number;
+  mock?: boolean;
+  testnet?: boolean;
+}
+
+export interface GetBalanceResult {
+  balance_sats: number;
+  mock?: boolean;
+  testnet?: boolean;
+}
+
 let nwcClient: nwc.NWCClient | null = null;
 let testnetNwcClient: nwc.NWCClient | null = null;
 
@@ -45,7 +100,11 @@ async function getClient(testnet = false): Promise<nwc.NWCClient> {
   return nwcClient;
 }
 
-export async function createInvoice(amount_sats: number, description: string, testnet = false) {
+export async function createInvoice(
+  amount_sats: number, 
+  description: string, 
+  testnet = false
+): Promise<CreateInvoiceResult> {
   // Mock mode - return fake invoice
   if (isMockMode || (testnet && !TESTNET_NWC_URL)) {
     const payment_hash = generateMockHash();
@@ -63,10 +122,10 @@ export async function createInvoice(amount_sats: number, description: string, te
 
   try {
     const client = await getClient(testnet);
-    const response: any = await client.makeInvoice({
+    const response = await client.makeInvoice({
       amount: amount_sats * 1000, // Convert to millisats
       description
-    });
+    }) as MakeInvoiceResponse;
     
     return {
       invoice: response.invoice,
@@ -74,13 +133,17 @@ export async function createInvoice(amount_sats: number, description: string, te
       expires_at: response.expires_at,
       testnet
     };
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('NWC create invoice error:', error);
-    throw new Error(`Failed to create invoice: ${error.message}`);
+    throw new Error(`Failed to create invoice: ${errorMessage}`);
   }
 }
 
-export async function checkInvoice(payment_hash: string, testnet = false) {
+export async function checkInvoice(
+  payment_hash: string, 
+  testnet = false
+): Promise<CheckInvoiceResult> {
   // Mock mode - auto-settle
   if (isMockMode || payment_hash.startsWith('testnet_')) {
     const mockPayment = mockPayments.get(payment_hash);
@@ -94,9 +157,9 @@ export async function checkInvoice(payment_hash: string, testnet = false) {
 
   try {
     const client = await getClient(testnet);
-    const response: any = await client.lookupInvoice({ payment_hash });
+    const response = await client.lookupInvoice({ payment_hash }) as LookupInvoiceResponse;
     
-    const isPaid = response.preimage || response.settled;
+    const isPaid = !!(response.preimage || response.settled);
     
     return {
       settled: isPaid,
@@ -109,7 +172,10 @@ export async function checkInvoice(payment_hash: string, testnet = false) {
   }
 }
 
-export async function payInvoice(invoice: string, testnet = false) {
+export async function payInvoice(
+  invoice: string, 
+  testnet = false
+): Promise<PayInvoiceResult> {
   // Mock mode - instant success
   if (isMockMode) {
     const payment_hash = generateMockHash();
@@ -125,7 +191,7 @@ export async function payInvoice(invoice: string, testnet = false) {
 
   try {
     const client = await getClient(testnet);
-    const response: any = await client.payInvoice({ invoice });
+    const response = await client.payInvoice({ invoice }) as PayInvoiceResponse;
     
     return {
       payment_hash: response.payment_hash || '',
@@ -134,13 +200,14 @@ export async function payInvoice(invoice: string, testnet = false) {
       fee: response.fees_paid || 0,
       testnet
     };
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('NWC pay invoice error:', error);
-    throw new Error(`Failed to pay invoice: ${error.message}`);
+    throw new Error(`Failed to pay invoice: ${errorMessage}`);
   }
 }
 
-export async function getBalance(testnet = false) {
+export async function getBalance(testnet = false): Promise<GetBalanceResult> {
   // Mock mode - unlimited test balance
   if (isMockMode) {
     return { balance_sats: 1000000, mock: true, testnet };
@@ -148,7 +215,7 @@ export async function getBalance(testnet = false) {
 
   try {
     const client = await getClient(testnet);
-    const response: any = await client.getBalance();
+    const response = await client.getBalance() as GetBalanceResponse;
     return {
       balance_sats: Math.floor(response.balance / 1000),
       testnet
@@ -160,13 +227,13 @@ export async function getBalance(testnet = false) {
 }
 
 // Helper to check current mode
-export function getLightningMode() {
+export function getLightningMode(): 'mock' | 'testnet-enabled' | 'mainnet' {
   if (isMockMode) return 'mock';
   if (TESTNET_NWC_URL) return 'testnet-enabled';
   return 'mainnet';
 }
 
 // Check if testnet is available
-export function isTestnetAvailable() {
+export function isTestnetAvailable(): boolean {
   return isMockMode || !!TESTNET_NWC_URL;
 }

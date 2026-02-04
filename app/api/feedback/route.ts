@@ -2,8 +2,31 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Rate limit check
+  const clientIp = getClientIp(request);
+  const rateLimitResult = checkRateLimit(`feedback:${clientIp}`, RATE_LIMITS.feedback);
+  
+  if (!rateLimitResult.allowed) {
+    const retryAfter = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { 
+        error: 'Too many feedback submissions. Please try again later.',
+        retry_after_seconds: retryAfter
+      },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': String(retryAfter),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(rateLimitResult.resetAt)
+        }
+      }
+    );
+  }
+
   try {
     const body = await request.json();
     const { from, message, email } = body;
@@ -38,8 +61,12 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Thank you! Your feedback has been received.',
       id: data.id
+    }, {
+      headers: {
+        'X-RateLimit-Remaining': String(rateLimitResult.remaining)
+      }
     });
-  } catch (e) {
+  } catch {
     return NextResponse.json(
       { error: 'Invalid request' },
       { status: 400 }
@@ -51,6 +78,7 @@ export async function GET() {
   return NextResponse.json({
     endpoint: '/api/feedback',
     method: 'POST',
+    rate_limit: '5 requests per hour',
     body: {
       from: 'Your name (optional)',
       email: 'Contact email (optional)',

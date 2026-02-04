@@ -1,3 +1,5 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+
 // Webhook event types
 export type WebhookEvent = 
   | 'gig.created'
@@ -7,16 +9,33 @@ export type WebhookEvent =
   | 'application.accepted'
   | 'application.rejected'
   | 'payment.sent'
-  | 'payment.received';
+  | 'payment.received'
+  | '*';
 
-interface WebhookPayload {
+export interface WebhookPayload {
   event: WebhookEvent;
   timestamp: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
+}
+
+interface WebhookSubscription {
+  url: string;
+  secret: string;
+  events: WebhookEvent[];
+}
+
+interface WebhookResult {
+  success: boolean;
+  status?: number;
+  error?: unknown;
 }
 
 // Send webhook to subscriber
-export async function sendWebhook(url: string, secret: string, payload: WebhookPayload) {
+export async function sendWebhook(
+  url: string, 
+  secret: string, 
+  payload: WebhookPayload
+): Promise<WebhookResult> {
   const body = JSON.stringify(payload);
   
   // Create signature
@@ -53,11 +72,11 @@ export async function sendWebhook(url: string, secret: string, payload: WebhookP
 
 // Trigger webhooks for an event
 export async function triggerWebhooks(
-  supabase: any,
+  supabase: SupabaseClient,
   event: WebhookEvent,
   userId: string,
-  data: Record<string, any>
-) {
+  data: Record<string, unknown>
+): Promise<WebhookResult[] | undefined> {
   // Get user's webhook subscriptions
   const { data: subscriptions } = await supabase
     .from('webhook_subscriptions')
@@ -74,10 +93,11 @@ export async function triggerWebhooks(
   };
 
   // Send to all matching subscriptions
+  const matchingSubscriptions = (subscriptions as WebhookSubscription[])
+    .filter(sub => sub.events.includes(event) || sub.events.includes('*'));
+
   const results = await Promise.all(
-    subscriptions
-      .filter((sub: any) => sub.events.includes(event) || sub.events.includes('*'))
-      .map((sub: any) => sendWebhook(sub.url, sub.secret, payload))
+    matchingSubscriptions.map(sub => sendWebhook(sub.url, sub.secret, payload))
   );
 
   return results;

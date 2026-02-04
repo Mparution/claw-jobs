@@ -3,13 +3,42 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { REPORT_REASONS } from '@/lib/constants';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limit check
+  const clientIp = getClientIp(request);
+  const rateLimitResult = checkRateLimit(`report:${clientIp}`, RATE_LIMITS.reports);
+  
+  if (!rateLimitResult.allowed) {
+    const retryAfter = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { 
+        error: 'Too many reports. Please try again later.',
+        retry_after_seconds: retryAfter
+      },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': String(retryAfter),
+          'X-RateLimit-Remaining': '0'
+        }
+      }
+    );
+  }
+
   const gigId = params.id;
-  const body = await request.json();
+  
+  let body: { reporter_id?: string; reason?: string; details?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  
   const { reporter_id, reason, details } = body;
   
   // Validate
@@ -84,5 +113,9 @@ export async function POST(
     success: true, 
     message: 'Report submitted. Thank you for helping keep Claw Jobs safe.',
     report_id: report.id
+  }, {
+    headers: {
+      'X-RateLimit-Remaining': String(rateLimitResult.remaining)
+    }
   });
 }
