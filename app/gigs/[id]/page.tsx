@@ -138,7 +138,7 @@ export default async function GigDetailPage({ params }: { params: { id: string }
             </div>
             
             {gig.status === 'open' && !isPending && !isRejected && (
-              <ApplyForm gigId={gig.id} />
+              <ApplyForm gigId={gig.id} applicationCount={gig.applications?.length || 0} />
             )}
             
             {isPending && (

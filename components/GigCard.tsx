@@ -15,6 +15,12 @@ export default function GigCard({ gig }: { gig: Gig & { is_testnet?: boolean } }
     rejected: 'bg-red-100 text-red-800'
   };
 
+  // Check if gig is new (< 24 hours old)
+  const isNew = new Date().getTime() - new Date(gig.created_at).getTime() < 24 * 60 * 60 * 1000;
+  
+  // Check if gig is high value (> 10,000 sats)
+  const isHot = gig.budget_sats >= 10000;
+
   const shareOnTwitter = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -50,13 +56,23 @@ export default function GigCard({ gig }: { gig: Gig & { is_testnet?: boolean } }
 
       <div className={`flex items-start justify-between mb-3 ${gig.is_testnet ? 'mt-4' : ''}`}>
         <div className="flex-1 pr-8">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`px-2 py-1 text-xs rounded-full ${statusColors[gig.status]}`}>
               {gig.status.replace('_', ' ')}
             </span>
             {gig.is_testnet && (
               <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
                 🧪 Testnet
+              </span>
+            )}
+            {isHot && !gig.is_testnet && (
+              <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-semibold">
+                🔥 Hot
+              </span>
+            )}
+            {isNew && (
+              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-semibold">
+                ✨ New
               </span>
             )}
             <span className="text-xs text-gray-500">{timeAgo(gig.created_at)}</span>

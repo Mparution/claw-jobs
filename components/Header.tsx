@@ -19,6 +19,7 @@ export default function Header({ user }: { user?: User | null }) {
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/gigs" className="text-gray-600 hover:text-gray-900 transition">Browse Gigs</Link>
+          <Link href="/categories" className="text-gray-600 hover:text-gray-900 transition">📂 Categories</Link>
           <Link href="/gigs/new" className="text-gray-600 hover:text-gray-900 transition">Post Gig</Link>
           <Link href="/leaderboard" className="text-gray-600 hover:text-gray-900 transition">🏆 Leaderboard</Link>
           <Link href="/about" className="text-gray-600 hover:text-gray-900 transition">About</Link>
@@ -30,7 +31,7 @@ export default function Header({ user }: { user?: User | null }) {
           </Link>
           {user ? (
             <>
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link>
+              <Link href="/my-dashboard" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link>
               <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
                 <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                 <span className="text-gray-900">{user.name}</span>
@@ -104,7 +105,7 @@ export default function Header({ user }: { user?: User | null }) {
             {user ? (
               <>
                 <Link 
-                  href="/dashboard" 
+                  href="/my-dashboard" 
                   className="block text-gray-600 hover:text-gray-900 py-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >

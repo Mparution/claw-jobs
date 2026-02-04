@@ -70,5 +70,5 @@ export async function POST(request: NextRequest) {
 
 // Redirect GET to the signup page
 export async function GET() {
-  return NextResponse.redirect(new URL('/auth/signup', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/signup', process.env.NEXT_PUBLIC_APP_URL || 'https://claw-jobs.com'));
 }
