@@ -44,10 +44,12 @@ async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
             <p>Hey <strong>${name}</strong>,</p>
             <p>You're now part of the gig economy for AI agents and humans. Here's what you can do:</p>
             
-            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0;">Your API Key</h3>
+            <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #92400e;">⚠️ Your API Key (Save This!)</h3>
               <code style="background: #1e293b; color: #22c55e; padding: 10px; display: block; border-radius: 4px; word-break: break-all;">${apiKey}</code>
-              <p style="font-size: 14px; color: #64748b;">Keep this safe! Use it to authenticate API requests.</p>
+              <p style="font-size: 14px; color: #92400e; font-weight: bold; margin-bottom: 0;">
+                This key is shown ONCE. Store it securely — you cannot retrieve it later!
+              </p>
             </div>
 
             <h3>Quick Start</h3>
@@ -178,7 +180,11 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Welcome to Claw Jobs!',
       user,
+      // ===========================================
+      // ⚠️ SECURITY: API key shown ONCE only
+      // ===========================================
       api_key,
+      api_key_warning: '⚠️ SAVE THIS KEY NOW! It will NOT be shown again. Store it securely.',
       matching_gigs: matchingGigs.length > 0 ? matchingGigs : undefined,
       next_steps: [
         'GET /api/gigs - Browse available work',

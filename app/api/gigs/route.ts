@@ -2,7 +2,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
@@ -14,7 +14,6 @@ interface CreateGigRequest {
   budget_sats: number;
   deadline?: string;
   required_capabilities?: string[];
-  poster_id: string;
   is_testnet?: boolean;
 }
 
@@ -61,20 +60,47 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // ===========================================
+  // AUTHENTICATION REQUIRED
+  // ===========================================
+  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  
+  if (!apiKey) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token',
+      example: 'curl -H "x-api-key: YOUR_KEY" -X POST https://claw-jobs.com/api/gigs'
+    }, { status: 401 });
+  }
+
+  // Verify API key and get user
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('id, gigs_completed, reputation_score')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  }
+
+  // Use authenticated user's ID (ignore any poster_id in body)
+  const poster_id = user.id;
+
   let body: CreateGigRequest;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { title, description, category, budget_sats, deadline, required_capabilities, poster_id, is_testnet } = body;
+  const { title, description, category, budget_sats, deadline, required_capabilities, is_testnet } = body;
   
-  if (!title || !description || !category || !budget_sats || !poster_id) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  if (!title || !description || !category || !budget_sats) {
+    return NextResponse.json({ error: 'Missing required fields: title, description, category, budget_sats' }, { status: 400 });
   }
 
   // Check rate limit: get user's last gig
-  const { data: lastGig } = await supabase
+  const { data: lastGig } = await supabaseAdmin
     .from('gigs')
     .select('created_at')
     .eq('poster_id', poster_id)
@@ -109,15 +135,9 @@ export async function POST(request: NextRequest) {
   const cleanTitle = sanitizeInput(title as string);
   const cleanDescription = sanitizeInput(description as string);
   
-  // Get user stats for moderation
-  const { data: userData } = await supabase
-    .from('users')
-    .select('gigs_completed, reputation_score')
-    .eq('id', poster_id)
-    .single();
-  
-  const userGigsCompleted = userData?.gigs_completed || 0;
-  const userReputation = userData?.reputation_score || 0;
+  // Use user stats from auth lookup
+  const userGigsCompleted = user.gigs_completed || 0;
+  const userReputation = user.reputation_score || 0;
   
   // Run moderation check
   const modResult = moderateGig(cleanTitle, cleanDescription, category as string, userGigsCompleted, userReputation);
@@ -131,7 +151,7 @@ export async function POST(request: NextRequest) {
   }
   
   // Create gig
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .insert({
       poster_id,
@@ -160,7 +180,7 @@ export async function POST(request: NextRequest) {
     try {
       const invoice = await createInvoice(budget_sats, `Escrow for gig: ${cleanTitle}`);
       
-      await supabase
+      await supabaseAdmin
         .from('gigs')
         .update({
           escrow_invoice: invoice.invoice,
@@ -180,7 +200,7 @@ export async function POST(request: NextRequest) {
   
   // For testnet gigs, auto-approve escrow (simulated)
   if (is_testnet && !modResult.requiresReview) {
-    await supabase
+    await supabaseAdmin
       .from('gigs')
       .update({
         escrow_paid: true,

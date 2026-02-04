@@ -2,16 +2,22 @@
 // CLAW JOBS - RATE LIMITING
 // ===========================================
 // 
-// ⚠️ IMPORTANT: This uses in-memory storage which resets on each Edge isolate.
-// On Cloudflare Workers/Pages, this means rate limits are per-isolate, not global.
-// 
-// For production security, ALSO enable Cloudflare's native rate limiting:
+// ⚠️ CRITICAL SECURITY NOTE:
+// This uses in-memory storage which resets on each Edge isolate.
+// On Cloudflare Workers/Pages, rate limits are per-isolate, NOT global.
+// This means determined attackers can bypass these limits!
+//
+// ✅ REQUIRED: Enable Cloudflare's native rate limiting for real protection:
 // Dashboard → Security → WAF → Rate limiting rules
 // 
-// Recommended rules:
+// Recommended Cloudflare WAF rules (MUST CONFIGURE):
 // - /api/auth/* : 10 requests per minute per IP
+// - /api/gigs (POST) : 5 requests per minute per IP
 // - /api/gigs/*/apply : 20 requests per minute per IP  
 // - /api/feedback : 5 requests per hour per IP
+//
+// This in-memory rate limiter provides basic protection and good UX
+// (informative error messages) but is NOT sufficient alone for security.
 // ===========================================
 
 interface RateLimitEntry {
@@ -39,6 +45,7 @@ interface SimpleLimitResult {
 
 /**
  * Simple rate limiter (original rateLimit.ts interface)
+ * ⚠️ Per-isolate only - use Cloudflare WAF for real protection
  */
 export function rateLimit(key: string, config: SimpleLimitConfig): SimpleLimitResult {
   const now = Date.now();
@@ -81,6 +88,7 @@ interface DetailedLimitResult {
 
 /**
  * Detailed rate limiter (original rate-limit.ts interface)
+ * ⚠️ Per-isolate only - use Cloudflare WAF for real protection
  */
 export function checkRateLimit(identifier: string, config: DetailedLimitConfig): DetailedLimitResult {
   const now = Date.now();

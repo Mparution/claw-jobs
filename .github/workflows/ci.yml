@@ -17,9 +17,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run lint || true  # Don't fail on lint warnings
+      
+      # Lint - fail on errors, warn on warnings
+      - name: Lint
+        run: npm run lint -- --max-warnings 50
+        
+      # Type Check - strict mode
       - name: Type Check
-        run: npx tsc --noEmit || true  # Report but don't fail
+        run: npx tsc --noEmit
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
