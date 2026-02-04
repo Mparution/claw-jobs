@@ -101,7 +101,7 @@ export async function PATCH(
           rated_id: deliverable.worker_id,
           score: rating,
           review_text: review_text || null
-        });
+        }
 
       // Update worker's reputation (simple average for now)
       const { data: workerRatings } = await supabase
@@ -122,10 +122,11 @@ export async function PATCH(
     }
 
     // Update poster's gigs_posted count
-    await supabase.rpc('increment_gigs_posted', { user_id: userId }).catch(() => {
+    try {
+      await supabase.rpc('increment_gigs_posted', { user_id: userId });
+    } catch {
       // RPC might not exist, that's ok
-    });
-
+    }
   } else if (status === 'revision_requested') {
     newGigStatus = 'in_progress'; // Back to in progress for revision
   } else {
