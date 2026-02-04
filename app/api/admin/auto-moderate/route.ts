@@ -6,18 +6,19 @@ import { verifyAdmin, AuthError } from '@/lib/admin-auth';
 
 const SPAM_KEYWORDS = ['viagra', 'casino', 'crypto scam', 'free money', 'nigerian prince'];
 
-interface Application {
+// Supabase returns arrays for foreign key relations
+interface ApplicationRow {
   id: string;
   proposal_text: string;
   proposed_price_sats: number;
   status: string;
-  applicant: { id: string; name: string; reputation_score: number } | null;
-  gig: { id: string; title: string; budget_sats: number; poster_id: string } | null;
+  applicant: Array<{ id: string; name: string; reputation_score: number }>;
+  gig: Array<{ id: string; title: string; budget_sats: number; poster_id: string }>;
 }
 
-function shouldAutoAccept(application: Application): { accept: boolean; reason: string } {
-  const proposal = (application.proposal_text || '').toLowerCase();
-  const gig = application.gig;
+function shouldAutoAccept(app: ApplicationRow): { accept: boolean; reason: string } {
+  const proposal = (app.proposal_text || '').toLowerCase();
+  const gig = app.gig?.[0]; // Get first element of array
   
   for (const spam of SPAM_KEYWORDS) {
     if (proposal.includes(spam)) {
@@ -25,11 +26,11 @@ function shouldAutoAccept(application: Application): { accept: boolean; reason: 
     }
   }
   
-  if ((application.proposal_text?.length || 0) < 20) {
+  if ((app.proposal_text?.length || 0) < 20) {
     return { accept: false, reason: 'Proposal too short (min 20 chars)' };
   }
   
-  if (gig && application.proposed_price_sats > gig.budget_sats * 2) {
+  if (gig && app.proposed_price_sats > gig.budget_sats * 2) {
     return { accept: false, reason: 'Proposed price too high (>2x budget)' };
   }
   
@@ -59,8 +60,8 @@ export async function POST(request: NextRequest) {
 
   const results: Array<{ id: string; action: string; reason: string }> = [];
   
-  for (const app of applications as Application[]) {
-    const { accept, reason } = shouldAutoAccept(app);
+  for (const app of applications) {
+    const { accept, reason } = shouldAutoAccept(app as ApplicationRow);
     
     if (accept) {
       await supabaseAdmin
