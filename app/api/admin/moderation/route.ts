@@ -4,12 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { sendEmail, gigRejectedEmail } from '@/lib/email';
-import { verifyAdmin, getVerifiedAdmin } from '@/lib/admin-auth';
+import { verifyAdmin, AuthError } from '@/lib/admin-auth';
 
-// GET - Fetch gigs pending review
 export async function GET(request: NextRequest) {
-  const authError = await verifyAdmin(request);
-  if (authError) return authError;
+  try {
+    await verifyAdmin(request);
+  } catch (e) {
+    if (e instanceof AuthError) return e.response;
+    throw e;
+  }
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
@@ -24,7 +27,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   
-  // Also get report counts
   const gigIds = data.map((g: { id: string }) => g.id);
   const { data: reportCounts } = await supabase
     .from('reports')
@@ -44,11 +46,14 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(gigsWithCounts);
 }
 
-// POST - Approve or reject a gig
 export async function POST(request: NextRequest) {
-  const authError = await verifyAdmin(request);
-  if (authError) return authError;
-  const admin = getVerifiedAdmin();
+  let admin;
+  try {
+    admin = await verifyAdmin(request);
+  } catch (e) {
+    if (e instanceof AuthError) return e.response;
+    throw e;
+  }
 
   const body = await request.json();
   const { gig_id, action, notes } = body;
@@ -61,7 +66,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Action must be approve or reject' }, { status: 400 });
   }
   
-  // Get current gig state with poster info for email
   const { data: gig, error: gigError } = await supabase
     .from('gigs')
     .select('id, title, moderation_status, status, poster:users!poster_id(email, name)')
@@ -78,7 +82,6 @@ export async function POST(request: NextRequest) {
   
   const newGigStatus = action === 'approve' ? 'open' : 'rejected';
   
-  // Update gig - use authenticated admin's ID
   const { error: updateError } = await supabase
     .from('gigs')
     .update({
@@ -94,7 +97,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
   
-  // Log the action
   await supabase
     .from('moderation_log')
     .insert({
@@ -106,7 +108,6 @@ export async function POST(request: NextRequest) {
       moderator_id: admin.id
     });
   
-  // Send email notification on rejection
   const poster = gig.poster as { email?: string; name?: string } | null;
   if (action === 'reject' && poster?.email) {
     const emailContent = gigRejectedEmail(gig.title, notes);

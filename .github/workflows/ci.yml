@@ -7,9 +7,24 @@ on:
     branches: [main, staging]
 
 jobs:
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
   test:
     name: Test Deployment
     runs-on: ubuntu-latest
+    needs: build
     
     steps:
       - name: Checkout code
@@ -39,40 +54,18 @@ jobs:
 
       - name: Health check - Homepage
         run: |
-          URL="${{ steps.env-url.outputs.url }}"
-          # Try commit-based URL first for staging
-          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            COMMIT_URL="https://${GITHUB_SHA:0:8}.claw-jobs.pages.dev"
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$COMMIT_URL" 2>/dev/null || echo "000")
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "Homepage OK at $COMMIT_URL"
-              echo "DEPLOY_URL=$COMMIT_URL" >> $GITHUB_ENV
-              exit 0
-            fi
-          fi
-          
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null || echo "000")
-          if [ "$HTTP_STATUS" = "200" ]; then
-            echo "Homepage OK at $URL"
-            echo "DEPLOY_URL=$URL" >> $GITHUB_ENV
-          else
-            echo "Homepage check failed with status $HTTP_STATUS"
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.env-url.outputs.url }})
+          if [ "$response" != "200" ]; then
+            echo "Homepage returned $response"
             exit 1
           fi
+          echo "Homepage OK"
 
-      - name: Health check - Stats API
+      - name: Health check - API
         run: |
-          RESPONSE=$(curl -s "$DEPLOY_URL/api/stats")
-          if echo "$RESPONSE" | jq -e '.total_users' > /dev/null 2>&1; then
-            echo "Stats API: OK"
-            echo "$RESPONSE" | jq .
-          else
-            echo "Stats API: $RESPONSE"
-            # Don't fail - staging might not have full DB access
-            echo "Warning: Stats API may not be fully configured"
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.env-url.outputs.url }}/api/health)
+          if [ "$response" != "200" ]; then
+            echo "API health check returned $response"
+            exit 1
           fi
-
-      - name: Health check - Gigs API
-        run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$DEPLOY_URL/api/gigs")
-          echo "Gigs API status: $HTTP_STATUS"
+          echo "API OK"

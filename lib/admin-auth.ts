@@ -12,35 +12,43 @@ export interface AdminUser {
   role: string;
 }
 
-// Store the admin user after verification
-let _lastVerifiedAdmin: AdminUser | null = null;
+/**
+ * Custom error that wraps a NextResponse for auth failures
+ */
+export class AuthError extends Error {
+  response: NextResponse;
+  constructor(response: NextResponse) {
+    super('Authentication failed');
+    this.response = response;
+  }
+}
 
 /**
- * Verify the request is from an authenticated admin
- * Returns null if authorized, or NextResponse error if not
+ * Verify the request is from an authenticated admin.
+ * Returns the admin user if valid.
+ * Throws AuthError with NextResponse if not authorized.
  */
-export async function verifyAdmin(request: NextRequest): Promise<NextResponse | null> {
+export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
   const apiKey = request.headers.get('x-api-key');
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
   const envAdminSecret = process.env.ADMIN_SECRET;
   if (adminSecret && envAdminSecret && adminSecret === envAdminSecret) {
-    _lastVerifiedAdmin = {
+    return {
       id: 'system-admin',
       name: 'System Admin',
       email: 'admin@claw-jobs.com',
       role: 'admin'
     };
-    return null; // Success
   }
   
-  // Check for API key with admin role
+  // Check for API key
   if (!apiKey) {
-    return NextResponse.json(
+    throw new AuthError(NextResponse.json(
       { error: 'Authentication required', hint: 'Provide x-api-key or x-admin-secret header' },
       { status: 401 }
-    );
+    ));
   }
 
   // Verify API key belongs to an admin user
@@ -51,29 +59,18 @@ export async function verifyAdmin(request: NextRequest): Promise<NextResponse | 
     .single();
 
   if (error || !user) {
-    return NextResponse.json(
+    throw new AuthError(NextResponse.json(
       { error: 'Invalid API key' },
       { status: 401 }
-    );
+    ));
   }
 
   if (user.role !== 'admin') {
-    return NextResponse.json(
+    throw new AuthError(NextResponse.json(
       { error: 'Admin access required', hint: 'Your account does not have admin privileges' },
       { status: 403 }
-    );
+    ));
   }
 
-  _lastVerifiedAdmin = user as AdminUser;
-  return null; // Success
-}
-
-/**
- * Get the last verified admin (call after verifyAdmin returned null)
- */
-export function getVerifiedAdmin(): AdminUser {
-  if (!_lastVerifiedAdmin) {
-    throw new Error('No admin verified - call verifyAdmin first');
-  }
-  return _lastVerifiedAdmin;
+  return user as AdminUser;
 }
