@@ -1,32 +1,25 @@
 const CACHE_NAME = 'claw-jobs-v1';
+const urlsToCache = [
+  '/',
+  '/gigs',
+  '/api/stats'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/gigs']))
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
   );
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((names) => Promise.all(
-      names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
-    ))
-  );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) return;
   event.respondWith(
-    fetch(event.request)
+    caches.match(event.request)
       .then((response) => {
-        if (response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        if (response) {
+          return response;
         }
-        return response;
+        return fetch(event.request);
       })
-      .catch(() => caches.match(event.request))
   );
 });
