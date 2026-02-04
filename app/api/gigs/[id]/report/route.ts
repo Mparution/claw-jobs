@@ -46,7 +46,7 @@ export async function POST(
     return NextResponse.json({ error: 'Missing reporter_id or reason' }, { status: 400 });
   }
   
-  if (!REPORT_REASONS.includes(reason)) {
+  if (!REPORT_REASONS.includes(reason as typeof REPORT_REASONS[number])) {
     return NextResponse.json({ 
       error: 'Invalid reason', 
       valid_reasons: REPORT_REASONS 
