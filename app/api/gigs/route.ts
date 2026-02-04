@@ -7,6 +7,17 @@ import { createInvoice } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 
+interface CreateGigRequest {
+  title: string;
+  description: string;
+  category: string;
+  budget_sats: number;
+  deadline?: string;
+  required_capabilities?: string[];
+  poster_id: string;
+  is_testnet?: boolean;
+}
+
 // Rate limits: 21 min for mainnet, 10 min for testnet
 const MAINNET_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
 const TESTNET_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
@@ -50,7 +61,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
+  let body: CreateGigRequest;
   try {
     body = await request.json();
   } catch {
