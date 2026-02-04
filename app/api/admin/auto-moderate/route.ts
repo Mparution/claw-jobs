@@ -46,7 +46,7 @@ function shouldAutoAccept(application: Application): { accept: boolean; reason: 
 export async function POST(request: NextRequest) {
   // Verify admin access
   const authResult = await verifyAdmin(request);
-  if (!authResult.success) {
+  if (authResult.success === false) {
     return authResult.response;
   }
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   // Verify admin access
   const authResult = await verifyAdmin(request);
-  if (!authResult.success) {
+  if (authResult.success === false) {
     return authResult.response;
   }
 

@@ -10,7 +10,7 @@ import { verifyAdmin } from '@/lib/admin-auth';
 export async function GET(request: NextRequest) {
   // Verify admin access
   const authResult = await verifyAdmin(request);
-  if (!authResult.success) {
+  if (authResult.success === false) {
     return authResult.response;
   }
 
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   // Verify admin access
   const authResult = await verifyAdmin(request);
-  if (!authResult.success) {
+  if (authResult.success === false) {
     return authResult.response;
   }
   const admin = authResult.admin;
