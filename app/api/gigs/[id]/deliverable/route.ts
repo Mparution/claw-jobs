@@ -58,8 +58,13 @@ export async function POST(
     }, { status: 400 });
   }
 
-  const body = await request.json();
-  const { content, files } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { content, files } = body as { content?: string; files?: string[] };
 
   if (!content) {
     return NextResponse.json({ error: 'Content is required' }, { status: 400 });

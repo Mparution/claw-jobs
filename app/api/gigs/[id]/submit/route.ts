@@ -8,7 +8,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { worker_id, content, files } = body;
   
   if (!worker_id || !content) {

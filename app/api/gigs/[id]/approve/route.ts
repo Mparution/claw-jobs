@@ -65,8 +65,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const body = await request.json();
-  const { deliverable_id, poster_id } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { deliverable_id, poster_id } = body as { deliverable_id?: string; poster_id?: string };
   
   const { data: gig, error: gigError } = await supabase
     .from('gigs')

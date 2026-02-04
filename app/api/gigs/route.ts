@@ -50,7 +50,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { title, description, category, budget_sats, deadline, required_capabilities, poster_id, is_testnet } = body;
   
   if (!title || !description || !category || !budget_sats || !poster_id) {
