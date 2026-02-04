@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
   const userReputation = userData?.reputation_score || 0;
   
   // Run moderation check
-  const modResult = moderateGig(cleanTitle, cleanDescription, category, userGigsCompleted, userReputation);
+  const modResult = moderateGig(cleanTitle, cleanDescription, category as string, userGigsCompleted, userReputation);
   
   if (modResult.status === MODERATION_STATUS.REJECTED) {
     return NextResponse.json({ 
