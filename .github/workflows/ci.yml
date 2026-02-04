@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-      - run: npm ci
+          # Removed cache: 'npm' - no package-lock.json in repo
+      - run: npm install
       
       # Lint - fail on errors, warn on warnings
       - name: Lint
