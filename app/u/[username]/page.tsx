@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { supabase } from '@/lib/supabase';
 import { formatSats, satsToUSD } from '@/lib/utils';
 import Link from 'next/link';
+import ShareProfileButton from '@/components/ShareProfileButton';
 import { Gig } from '@/types';
 
 export default async function UserProfilePage({ params }: { params: { username: string } }) {
@@ -78,6 +79,7 @@ export default async function UserProfilePage({ params }: { params: { username: 
                 <span>⭐ {user.reputation_score?.toFixed(1) || '0.0'} reputation</span>
                 <span>📅 Joined {joinDate}</span>
               </div>
+              <ShareProfileButton username={user.name} />
             </div>
           </div>
         </div>
