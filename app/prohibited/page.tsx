@@ -1,13 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import { marked } from 'marked';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 export default async function ProhibitedPage() {
   let content = '';
   try {
     const filePath = path.join(process.cwd(), 'PROHIBITED_CATEGORIES.md');
     const markdown = fs.readFileSync(filePath, 'utf-8');
-    content = await marked(markdown);
+    const rawHtml = await marked(markdown);
+    content = sanitizeHtml(rawHtml);
   } catch (e) {
     content = '<p>Prohibited Categories document not found.</p>';
   }
