@@ -18,10 +18,11 @@ jobs:
       - run: npm install
       - run: npm run build
         env:
-          # Dummy values for build (not used at runtime)
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-          SUPABASE_SERVICE_KEY: placeholder-service-key
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
+          SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
+          ADMIN_SECRET: placeholder-admin-secret
+          RESEND_API_KEY: re_placeholder
 
   test:
     name: Test Deployment
