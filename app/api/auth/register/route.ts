@@ -3,76 +3,15 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
-import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
+import { AGENT_EMAIL_DOMAIN } from '@/lib/constants';
 import { generateSecureApiKey, getSecureShortCode } from '@/lib/crypto-utils';
 import { hashApiKey, getApiKeyPrefix, getDefaultExpiry } from '@/lib/api-key-hash';
+import { sendWelcomeEmail } from '@/lib/email';
 
 function generateAgentEmail(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
   const rand = getSecureShortCode(6);
   return `${slug}-${rand}@${AGENT_EMAIL_DOMAIN}`;
-}
-
-// Send welcome email (fire and forget - don't block registration)
-async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
-  // Skip auto-generated agent emails
-  if (email.endsWith(`@${AGENT_EMAIL_DOMAIN}`)) return;
-  
-  try {
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    if (!RESEND_API_KEY) return;
-
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: SENDER_FROM,
-        to: email,
-        subject: `Welcome to Claw Jobs, ${name}! ⚡`,
-        html: `
-          <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #f97316;">Welcome to Claw Jobs! 🤖⚡</h1>
-            <p>Hey <strong>${name}</strong>,</p>
-            <p>You're now part of the gig economy for AI agents and humans. Here's what you can do:</p>
-            
-            <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #92400e;">⚠️ Your API Key (Save This!)</h3>
-              <code style="background: #1e293b; color: #22c55e; padding: 10px; display: block; border-radius: 4px; word-break: break-all;">${apiKey}</code>
-              <p style="font-size: 14px; color: #92400e; font-weight: bold; margin-bottom: 0;">
-                This key is shown ONCE. Store it securely — you cannot retrieve it later!
-              </p>
-            </div>
-
-            <h3>Quick Start</h3>
-            <ul>
-              <li><strong>Browse gigs:</strong> <code>GET /api/gigs</code></li>
-              <li><strong>Apply to work:</strong> <code>POST /api/gigs/{id}/apply</code></li>
-              <li><strong>Post a gig:</strong> <code>POST /api/gigs</code></li>
-            </ul>
-
-            <p>
-              <a href="https://claw-jobs.com/gigs" style="background: #f97316; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block;">
-                Browse Open Gigs →
-              </a>
-            </p>
-
-            <p style="color: #64748b; font-size: 14px; margin-top: 30px;">
-              Questions? Reply to this email or check our <a href="https://claw-jobs.com/docs">docs</a>.
-            </p>
-            
-            <p>Let's build the future of work together! ⚡</p>
-            <p>— The Claw Jobs Team</p>
-          </div>
-        `,
-      }),
-    });
-  } catch (e) {
-    // Don't fail registration if email fails
-    console.error('Welcome email failed:', e);
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -129,9 +68,7 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
-    // ===========================================
-    // SECURITY FIX: Hash API key before storage
-    // ===========================================
+    // Generate and hash API key
     const api_key = generateSecureApiKey();
     const api_key_hash = await hashApiKey(api_key);
     const api_key_prefix = getApiKeyPrefix(api_key);
@@ -146,11 +83,9 @@ export async function POST(request: NextRequest) {
         bio: bio || null,
         capabilities: capabilities || [],
         lightning_address: lightning_address || null,
-        // Store HASHED key, not plaintext
         api_key_hash,
         api_key_prefix,
         api_key_expires_at: api_key_expires_at.toISOString(),
-        // Keep legacy field null for new users
         api_key: null,
         reputation_score: 5.0,
         total_earned_sats: 0,
@@ -165,8 +100,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
     }
 
-    // Send welcome email (async, don't await)
-    sendWelcomeEmail(finalEmail, name, api_key);
+    // Send welcome email with proper error handling
+    const emailResult = await sendWelcomeEmail(finalEmail, name, api_key);
+    if (!emailResult.success) {
+      console.warn(`Welcome email failed for ${finalEmail}: ${emailResult.error}`);
+    }
 
     // Find matching gigs based on capabilities
     let matchingGigs: string[] = [];
@@ -178,7 +116,9 @@ export async function POST(request: NextRequest) {
         .limit(3);
       
       if (gigs) {
-        matchingGigs = gigs.map(g => `${g.title} (${g.budget_sats} sats)`);
+        matchingGigs = gigs.map((g: { title: string; budget_sats: number }) => 
+          `${g.title} (${g.budget_sats} sats)`
+        );
       }
     }
 
@@ -186,9 +126,6 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Welcome to Claw Jobs!',
       user,
-      // ===========================================
-      // ⚠️ SECURITY: API key shown ONCE only (not stored in DB)
-      // ===========================================
       api_key,
       api_key_warning: '⚠️ SAVE THIS KEY NOW! It will NOT be shown again. Store it securely.',
       api_key_expires_at: api_key_expires_at.toISOString(),

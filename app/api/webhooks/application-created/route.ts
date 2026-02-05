@@ -2,149 +2,102 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import type { User, Gig, Application } from '@/types';
 
-// Webhook secret for verification
-const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET;
-
-interface ApplicationPayload {
-  type: 'INSERT';
-  table: 'applications';
-  record: {
-    id: string;
-    gig_id: string;
-    applicant_id: string;
-    proposal_text: string;
-    status: string;
-  };
+interface SupabaseWebhookPayload {
+  type: 'INSERT' | 'UPDATE' | 'DELETE';
+  table: string;
+  schema: string;
+  record: Application | null;
+  old_record: Application | null;
 }
 
-// POST /api/webhooks/application-created
-// Called by Supabase when a new application is inserted
+interface ApplicationWithRelations extends Application {
+  gig?: Gig & { poster?: User };
+  applicant?: User;
+}
+
+/**
+ * Webhook for auto-moderating new applications
+ */
 export async function POST(request: NextRequest) {
   // Verify webhook secret
-  const authHeader = request.headers.get('authorization');
-  if (WEBHOOK_SECRET && authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-    console.error('Invalid webhook secret');
+  const secret = request.headers.get('x-webhook-secret');
+  const expectedSecret = process.env.SUPABASE_WEBHOOK_SECRET;
+  
+  if (!expectedSecret || secret !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let payload: ApplicationPayload;
   try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  // Only process INSERT events on applications
-  if (payload.type !== 'INSERT' || !payload.record?.id) {
-    return NextResponse.json({ message: 'Ignored - not an INSERT' });
-  }
-
-  const appId = payload.record.id;
-
-  // Fetch full application details
-  const { data: app, error } = await supabaseAdmin
-    .from('applications')
-    .select(`
-      id, gig_id, applicant_id, proposal_text, status, created_at,
-      applicant:users!applicant_id(id, name, type, gigs_completed, reputation_score),
-      gig:gigs!gig_id(id, title, poster_id, status, is_testnet, budget_sats, selected_worker_id)
-    `)
-    .eq('id', appId)
-    .single();
-
-  if (error || !app) {
-    console.error('Failed to fetch application:', error);
-    return NextResponse.json({ error: 'Application not found' }, { status: 404 });
-  }
-
-  const gig = app.gig as any;
-  const applicant = app.applicant as any;
-
-  // Already processed?
-  if (app.status !== 'pending') {
-    return NextResponse.json({ message: 'Already processed', status: app.status });
-  }
-
-  // === REVIEW LOGIC ===
-  let decision: 'accept' | 'reject' | 'skip' = 'skip';
-  let reason = '';
-
-  // 1. Gig already has a worker
-  if (gig.selected_worker_id) {
-    decision = 'reject';
-    reason = 'Gig already has a selected worker';
-  }
-  // 2. Gig not open
-  else if (gig.status !== 'open') {
-    decision = 'reject';
-    reason = `Gig status is ${gig.status}, not open`;
-  }
-  // 3. Testnet gig - auto-accept (no risk)
-  else if (gig.is_testnet) {
-    decision = 'accept';
-    reason = 'Testnet gig - auto-accepted';
-  }
-  // 4. Mainnet - check quality
-  else {
-    const proposalLength = app.proposal_text?.length || 0;
-    const hasExperience = (applicant.gigs_completed || 0) > 0;
-    const hasReputation = (applicant.reputation_score || 0) >= 3;
-    const isGenericProposal = app.proposal_text?.includes("I have experience with various tasks");
+    const payload = await request.json() as SupabaseWebhookPayload;
     
-    // Accept if: good proposal AND (experienced OR has reputation)
-    if (proposalLength > 100 && (hasExperience || hasReputation)) {
-      decision = 'accept';
-      reason = 'Quality proposal from experienced worker';
+    if (payload.type !== 'INSERT' || payload.table !== 'applications' || !payload.record) {
+      return NextResponse.json({ message: 'Ignored' });
     }
-    // Accept if: any proposal and very experienced
-    else if (applicant.gigs_completed >= 3) {
-      decision = 'accept';
-      reason = 'Experienced worker (3+ completed gigs)';
-    }
-    // Reject generic mass-applications
-    else if (isGenericProposal && proposalLength < 150) {
-      decision = 'reject';
-      reason = 'Generic auto-generated proposal';
-    }
-    // Skip for manual review
-    else {
-      decision = 'skip';
-      reason = 'Needs manual review';
-    }
-  }
 
-  // === EXECUTE DECISION ===
-  if (decision === 'accept') {
-    await supabaseAdmin
+    const applicationId = payload.record.id;
+
+    // Fetch full application with relations
+    const { data: app, error } = await supabaseAdmin
       .from('applications')
-      .update({ status: 'accepted' })
-      .eq('id', appId);
-    
-    await supabaseAdmin
-      .from('gigs')
-      .update({ status: 'in_progress', selected_worker_id: app.applicant_id })
-      .eq('id', app.gig_id);
+      .select(`
+        *,
+        gig:gigs(*,poster:users!poster_id(*)),
+        applicant:users!applicant_id(*)
+      `)
+      .eq('id', applicationId)
+      .single();
 
-    console.log(`✅ ACCEPTED: ${applicant.name} → ${gig.title} (${reason})`);
-  } 
-  else if (decision === 'reject') {
-    await supabaseAdmin
-      .from('applications')
-      .update({ status: 'rejected' })
-      .eq('id', appId);
+    if (error || !app) {
+      console.error('Failed to fetch application:', error);
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 });
+    }
 
-    console.log(`❌ REJECTED: ${applicant.name} → ${gig.title} (${reason})`);
+    const typedApp = app as unknown as ApplicationWithRelations;
+    const gig = typedApp.gig;
+    const applicant = typedApp.applicant;
+
+    if (!gig || !applicant) {
+      return NextResponse.json({ error: 'Missing relations' }, { status: 400 });
+    }
+
+    // Auto-moderation rules
+    const gigTaken = gig.status !== 'open';
+    const isTestnet = gig.escrow_invoice === 'testnet_simulated';
+    const hasGoodProposal = typedApp.proposal_text && typedApp.proposal_text.length > 50;
+    const isExperienced = (applicant.gigs_completed || 0) >= 3;
+
+    let newStatus: string = 'pending';
+    let reason = '';
+
+    if (gigTaken) {
+      newStatus = 'rejected';
+      reason = 'Gig already taken';
+    } else if (isTestnet) {
+      newStatus = 'accepted';
+      reason = 'Auto-accepted (testnet)';
+    } else if (hasGoodProposal || isExperienced) {
+      newStatus = 'accepted';
+      reason = isExperienced ? 'Auto-accepted (experienced worker)' : 'Auto-accepted (good proposal)';
+    }
+
+    if (newStatus !== 'pending') {
+      await supabaseAdmin
+        .from('applications')
+        .update({ status: newStatus })
+        .eq('id', applicationId);
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      application_id: applicationId,
+      status: newStatus,
+      reason 
+    });
+
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
   }
-  else {
-    console.log(`⏸️ SKIPPED: ${applicant.name} → ${gig.title} (${reason})`);
-  }
-
-  return NextResponse.json({
-    application_id: appId,
-    applicant: applicant.name,
-    gig: gig.title,
-    decision,
-    reason
-  });
 }
