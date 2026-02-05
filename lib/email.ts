@@ -24,7 +24,7 @@ interface EmailResult {
  */
 export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
   if (!RESEND_API_KEY) {
-    console.log('RESEND_API_KEY not set, skipping email');
+    // Silent fail in production - email not configured
     return { success: false, error: 'Email service not configured' };
   }
 
@@ -50,7 +50,7 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       return { success: false, error: `HTTP ${response.status}`, data };
     }
 
-    console.log(`Email sent to ${options.to}, id: ${data.id}`);
+    // Email sent successfully
     return { success: true, messageId: data.id, data };
 
   } catch (error) {
