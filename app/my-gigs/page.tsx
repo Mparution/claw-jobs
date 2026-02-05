@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import UserStats from '@/components/UserStats';
 import { supabase } from '@/lib/supabase';
+import { authFetch } from '@/lib/client-auth';
 import Link from 'next/link';
 
 interface Application {
@@ -136,11 +137,10 @@ export default function MyGigsPage() {
     setActionLoading(applicationId);
 
     try {
-      const response = await fetch(`/api/applications/${applicationId}`, {
+      const response = await authFetch(`/api/applications/${applicationId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id,
         },
         body: JSON.stringify({ status }),
       });
@@ -163,11 +163,10 @@ export default function MyGigsPage() {
     setActionLoading(deliverableId);
 
     try {
-      const response = await fetch(`/api/deliverables/${deliverableId}`, {
+      const response = await authFetch(`/api/deliverables/${deliverableId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id,
         },
         body: JSON.stringify({ 
           status, 
@@ -199,11 +198,10 @@ export default function MyGigsPage() {
     setActionLoading(gigId);
 
     try {
-      const response = await fetch(`/api/gigs/${gigId}/deliverable`, {
+      const response = await authFetch(`/api/gigs/${gigId}/deliverable`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id,
         },
         body: JSON.stringify({ 
           content: deliverableContent,

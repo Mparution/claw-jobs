@@ -1,11 +1,13 @@
 // ===========================================
 // CLAW JOBS - CENTRALIZED AUTHENTICATION
 // ===========================================
-// All API routes should use this for authentication
-// Supports both hashed keys (new) and plaintext keys (legacy migration)
+// Supports:
+// 1. Supabase JWT tokens (browser sessions) - GOLD STANDARD
+// 2. API keys (agent/external API access)
 
 import { supabaseAdmin } from './supabase';
-import { hashApiKey, getApiKeyPrefix, verifyApiKey, isApiKeyExpired } from './api-key-hash';
+import { createClient } from '@supabase/supabase-js';
+import { getApiKeyPrefix, verifyApiKey, isApiKeyExpired } from './api-key-hash';
 
 export interface AuthenticatedUser {
   id: string;
@@ -25,17 +27,70 @@ export interface AuthResult {
 }
 
 /**
- * Authenticate a request using API key
+ * Verify Supabase JWT token and get user
+ * This is the GOLD STANDARD for browser authentication
+ */
+async function authenticateJWT(token: string): Promise<AuthResult> {
+  try {
+    // Create a temporary client to verify the token
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return { success: false, error: 'Server misconfigured' };
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    // getUser() validates the JWT and returns the user
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !authUser?.email) {
+      return { 
+        success: false, 
+        error: 'Invalid or expired token',
+        hint: 'Please sign in again'
+      };
+    }
+
+    // Get full user profile from our users table
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, type, role, gigs_completed, reputation_score')
+      .eq('email', authUser.email)
+      .single();
+
+    if (userError || !user) {
+      return {
+        success: false,
+        error: 'User profile not found',
+        hint: 'Your account may not be fully set up'
+      };
+    }
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        type: user.type,
+        role: user.role,
+        gigs_completed: user.gigs_completed,
+        reputation_score: user.reputation_score
+      }
+    };
+  } catch (e) {
+    console.error('JWT auth error:', e);
+    return { success: false, error: 'Authentication failed' };
+  }
+}
+
+/**
+ * Authenticate using API key (for agents/external API clients)
  * Supports both hashed (new) and plaintext (legacy) keys
- * 
- * Usage:
- * ```ts
- * const auth = await authenticateApiKey(request.headers.get('x-api-key'));
- * if (!auth.success) {
- *   return NextResponse.json({ error: auth.error }, { status: 401 });
- * }
- * const user = auth.user!;
- * ```
  */
 export async function authenticateApiKey(apiKey: string | null): Promise<AuthResult> {
   if (!apiKey) {
@@ -47,7 +102,6 @@ export async function authenticateApiKey(apiKey: string | null): Promise<AuthRes
   }
 
   // Strategy 1: Try hashed lookup (new keys)
-  // Look up by prefix, then verify hash
   const prefix = getApiKeyPrefix(apiKey);
   
   const { data: hashedUsers } = await supabaseAdmin
@@ -57,12 +111,10 @@ export async function authenticateApiKey(apiKey: string | null): Promise<AuthRes
 
   if (hashedUsers && hashedUsers.length > 0) {
     for (const user of hashedUsers) {
-      // Check expiry first
       if (isApiKeyExpired(user.api_key_expires_at)) {
-        continue; // Try next user with same prefix (unlikely but possible)
+        continue;
       }
       
-      // Verify hash
       if (user.api_key_hash) {
         const isValid = await verifyApiKey(apiKey, user.api_key_hash);
         if (isValid) {
@@ -84,7 +136,6 @@ export async function authenticateApiKey(apiKey: string | null): Promise<AuthRes
   }
 
   // Strategy 2: Fallback to plaintext lookup (legacy keys)
-  // TODO: Remove this after all keys are migrated to hashed
   const { data: legacyUser, error } = await supabaseAdmin
     .from('users')
     .select('id, name, email, type, role, gigs_completed, reputation_score')
@@ -92,13 +143,9 @@ export async function authenticateApiKey(apiKey: string | null): Promise<AuthRes
     .single();
 
   if (error || !legacyUser) {
-    return {
-      success: false,
-      error: 'Invalid API key'
-    };
+    return { success: false, error: 'Invalid API key' };
   }
 
-  // Legacy key found - consider logging for migration tracking
   return {
     success: true,
     user: {
@@ -114,63 +161,61 @@ export async function authenticateApiKey(apiKey: string | null): Promise<AuthRes
 }
 
 /**
- * Extract API key from request headers
+ * Extract credentials from request headers
  */
-export function getApiKeyFromRequest(request: Request): string | null {
-  return request.headers.get('x-api-key') || 
-         request.headers.get('authorization')?.replace('Bearer ', '') || 
-         null;
+function getCredentialsFromRequest(request: Request): { 
+  apiKey: string | null; 
+  bearerToken: string | null;
+} {
+  const apiKey = request.headers.get('x-api-key');
+  const authHeader = request.headers.get('authorization');
+  const bearerToken = authHeader?.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : null;
+
+  return { apiKey, bearerToken };
 }
 
 /**
- * Quick authentication helper that combines extraction and auth
- * Supports:
- * - x-api-key header (API clients/agents)
- * - Bearer token (API clients)
- * - x-user-id header (browser sessions - for frontend AJAX calls)
+ * Main authentication function - use this in all API routes
+ * 
+ * Priority:
+ * 1. x-api-key header (API clients/agents)
+ * 2. Bearer token - try as API key first, then as JWT (browser sessions)
  */
 export async function authenticateRequest(request: Request): Promise<AuthResult> {
-  // First try API key auth (for external API clients)
-  const apiKey = getApiKeyFromRequest(request);
+  const { apiKey, bearerToken } = getCredentialsFromRequest(request);
+
+  // Priority 1: Explicit API key header
   if (apiKey) {
     return authenticateApiKey(apiKey);
   }
-  
-  // Fallback: x-user-id header for browser sessions
-  // This is used by frontend pages that already authenticated via Supabase Auth
-  const userId = request.headers.get('x-user-id');
-  if (userId) {
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, name, email, type, role, gigs_completed, reputation_score')
-      .eq('id', userId)
-      .single();
-    
-    if (error || !user) {
-      return {
-        success: false,
-        error: 'User not found',
-        hint: 'Invalid x-user-id'
-      };
+
+  // Priority 2: Bearer token (could be API key or JWT)
+  if (bearerToken) {
+    // First try as API key (for agents using Bearer format)
+    const apiKeyResult = await authenticateApiKey(bearerToken);
+    if (apiKeyResult.success) {
+      return apiKeyResult;
     }
-    
+
+    // Then try as Supabase JWT (for browser sessions)
+    const jwtResult = await authenticateJWT(bearerToken);
+    if (jwtResult.success) {
+      return jwtResult;
+    }
+
+    // Both failed
     return {
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        type: user.type,
-        role: user.role,
-        gigs_completed: user.gigs_completed,
-        reputation_score: user.reputation_score
-      }
+      success: false,
+      error: 'Invalid credentials',
+      hint: 'Token is neither a valid API key nor a valid session token'
     };
   }
-  
+
   return {
     success: false,
     error: 'Authentication required',
-    hint: 'Provide x-api-key header, Bearer token, or x-user-id'
+    hint: 'Provide x-api-key header or Authorization: Bearer <token>'
   };
 }
