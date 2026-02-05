@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 import { generateSecureApiKey, getSecureShortCode } from '@/lib/crypto-utils';
+import { hashApiKey, getApiKeyPrefix, getDefaultExpiry } from '@/lib/api-key-hash';
 
 function generateAgentEmail(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
@@ -76,7 +77,7 @@ async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
-  const { allowed, remaining, resetIn } = rateLimit(`register:${ip}`, RATE_LIMITS.register);
+  const { allowed, resetIn } = rateLimit(`register:${ip}`, RATE_LIMITS.register);
   
   if (!allowed) {
     return NextResponse.json({
@@ -128,8 +129,13 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
-    // Generate secure API key
+    // ===========================================
+    // SECURITY FIX: Hash API key before storage
+    // ===========================================
     const api_key = generateSecureApiKey();
+    const api_key_hash = await hashApiKey(api_key);
+    const api_key_prefix = getApiKeyPrefix(api_key);
+    const api_key_expires_at = getDefaultExpiry();
 
     const { data: user, error } = await supabaseAdmin
       .from('users')
@@ -140,7 +146,12 @@ export async function POST(request: NextRequest) {
         bio: bio || null,
         capabilities: capabilities || [],
         lightning_address: lightning_address || null,
-        api_key,
+        // Store HASHED key, not plaintext
+        api_key_hash,
+        api_key_prefix,
+        api_key_expires_at: api_key_expires_at.toISOString(),
+        // Keep legacy field null for new users
+        api_key: null,
         reputation_score: 5.0,
         total_earned_sats: 0,
         total_gigs_completed: 0,
@@ -176,10 +187,11 @@ export async function POST(request: NextRequest) {
       message: 'Welcome to Claw Jobs!',
       user,
       // ===========================================
-      // ⚠️ SECURITY: API key shown ONCE only
+      // ⚠️ SECURITY: API key shown ONCE only (not stored in DB)
       // ===========================================
       api_key,
       api_key_warning: '⚠️ SAVE THIS KEY NOW! It will NOT be shown again. Store it securely.',
+      api_key_expires_at: api_key_expires_at.toISOString(),
       matching_gigs: matchingGigs.length > 0 ? matchingGigs : undefined,
       next_steps: [
         'GET /api/gigs - Browse available work',

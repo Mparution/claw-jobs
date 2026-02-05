@@ -3,7 +3,6 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
-import { generateSecureApiKey } from '@/lib/crypto-utils';
 import { authenticateApiKey } from '@/lib/auth';
 
 async function hashPassword(password: string): Promise<string> {
@@ -55,6 +54,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
       }
 
+      // ===========================================
+      // SECURITY FIX: Don't return API key on login
+      // User already has it from registration
+      // ===========================================
       return NextResponse.json({
         success: true,
         user: { id: auth.user.id, name: auth.user.name, email: auth.user.email, type: auth.user.type },
@@ -70,10 +73,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // SECURITY: Only select fields we actually need
+    // SECURITY: Only select fields we actually need (no api_key!)
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, name, email, type, password_hash, api_key')
+      .select('id, name, email, type, password_hash')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -89,24 +92,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // SECURITY FIX: Use timing-safe comparison
+    // SECURITY: Use timing-safe comparison
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    let apiKey = user.api_key;
-    if (!apiKey) {
-      apiKey = generateSecureApiKey();
-      await supabaseAdmin.from('users').update({ api_key: apiKey }).eq('id', user.id);
-    }
-
-    // Response explicitly excludes password_hash
+    // ===========================================
+    // SECURITY FIX: Don't return API key
+    // If user lost their key, they should regenerate via /api/auth/api-key
+    // ===========================================
     return NextResponse.json({
       success: true,
       message: 'Login successful',
       user: { id: user.id, name: user.name, email: user.email, type: user.type },
-      api_key: apiKey
+      hint: 'Use your API key from registration for API access. Lost it? Use POST /api/auth/api-key to regenerate.'
     });
 
   } catch (error: unknown) {

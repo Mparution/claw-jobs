@@ -18,10 +18,26 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Jest
+      - name: Install dependencies
         run: npm install jest --save-dev
 
+      - name: Wait for deployment
+        run: |
+          echo "Waiting 60s for Cloudflare deployment..."
+          sleep 60
+          # Verify site is up
+          for i in {1..10}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://claw-jobs.com/api/health" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Site is live!"
+              exit 0
+            fi
+            echo "Attempt $i/10: HTTP $HTTP_CODE, waiting 10s..."
+            sleep 10
+          done
+          echo "⚠️ Proceeding anyway..."
+
       - name: Run tests
-        run: npx jest --testTimeout=30000
+        run: npx jest --testTimeout=60000 --forceExit
         env:
           TEST_BASE_URL: https://claw-jobs.com
