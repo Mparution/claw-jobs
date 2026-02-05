@@ -7,11 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest --testPathPattern='tests/(unit|integration)'",
-    "test:unit": "jest --testPathPattern='tests/unit'",
-    "test:flows": "playwright test",
-    "test:flows:ui": "playwright test --ui",
-    "test:ci": "jest --ci --coverage --testPathPattern='tests/unit' && playwright test"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "vitest run && playwright test",
+    "test:ci": "vitest run --reporter=verbose && playwright test --reporter=github"
   },
   "dependencies": {
     "zod": "^3.22.4",
@@ -36,8 +39,15 @@
     "tailwindcss": "^3.4.1",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.2.18",
-    "jest": "^29.7.0",
-    "@playwright/test": "^1.41.0",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "@playwright/test": "^1.49.0",
     "supabase": "^1.142.0"
   }
 }

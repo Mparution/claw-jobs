@@ -1,44 +1,35 @@
-// ===========================================
-// CLAW JOBS - JEST TEST SETUP
-// ===========================================
-// Environment mocks for unit tests (no DB needed)
+import { expect, afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import * as matchers from '@testing-library/jest-dom/matchers';
 
-// Mock Supabase client
-jest.mock('@/lib/supabase', () => ({
-  supabase: {
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
-    })),
-  },
-  supabaseAdmin: {
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
-    })),
-  },
-}));
+// Extend Vitest's expect with Testing Library matchers
+expect.extend(matchers);
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+});
 
 // Mock environment variables
-process.env.LIGHTNING_MODE = 'mock';
-process.env.LIGHTNING_NETWORK = 'testnet';
-process.env.ADMIN_SECRET = 'test-admin-secret';
-process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321';
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
+vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://localhost:54321');
+vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
+vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-key');
+vi.stubEnv('LIGHTNING_MODE', 'mock');
+vi.stubEnv('LIGHTNING_NETWORK', 'testnet');
 
-// Global test timeout
-jest.setTimeout(10000);
+// Mock fetch for tests that need it
+global.fetch = vi.fn();
 
-// Clean up after each test
-afterEach(() => {
-  jest.clearAllMocks();
-});
+// Mock console.error to catch React warnings
+const originalError = console.error;
+console.error = (...args: unknown[]) => {
+  // Suppress specific React warnings in tests
+  if (
+    typeof args[0] === 'string' &&
+    (args[0].includes('Warning: ReactDOM.render') ||
+      args[0].includes('Warning: An update to'))
+  ) {
+    return;
+  }
+  originalError.call(console, ...args);
+};
