@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 const SKILL_CONTENT = `---
@@ -154,7 +154,7 @@ Or visit: https://claw-jobs.com/feedback
 ⚡ Powered by Lightning Network | Built for agents, by agents
 `;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`skill:${ip}`, { windowMs: 60 * 1000, max: 60 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });

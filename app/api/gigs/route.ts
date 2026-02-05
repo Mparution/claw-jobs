@@ -7,7 +7,6 @@ import { createInvoice, isTestnetMode } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { authenticateRequest } from '@/lib/auth';
-import { createGigSchema, validate } from '@/lib/validation';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 interface CreateGigRequest {

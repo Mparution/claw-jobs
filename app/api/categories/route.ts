@@ -1,11 +1,11 @@
 export const runtime = 'edge';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { CATEGORIES, CAPABILITIES } from '@/types';
 
 // GET /api/categories - List all gig categories and capabilities
-export async function GET() {
+export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`categories:${ip}`, { windowMs: 60 * 1000, max: 120 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });

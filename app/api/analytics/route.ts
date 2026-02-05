@@ -1,9 +1,16 @@
 export const runtime = 'edge';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+// Cloudflare Analytics API response types
+interface CloudflareDayStats {
+  dimensions: { date: string };
+  sum: { requests: number; pageViews: number; bytes: number };
+  uniq: { uniques: number };
+}
+
+export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`analytics:${ip}`, { windowMs: 60 * 1000, max: 30 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -40,11 +47,11 @@ export async function GET() {
     });
 
     const data = await response.json();
-    const stats = data?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
+    const stats: CloudflareDayStats[] = data?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
 
     return NextResponse.json({
       period: 'last_7_days',
-      daily: stats.map((day: { date: string; sum: { pageViews: number } }) => ({
+      daily: stats.map((day: CloudflareDayStats) => ({
         date: day.dimensions.date,
         pageViews: day.sum.pageViews,
         requests: day.sum.requests,
@@ -52,12 +59,12 @@ export async function GET() {
         bandwidth: Math.round(day.sum.bytes / 1024 / 1024) + ' MB'
       })),
       totals: {
-        pageViews: stats.reduce((acc: number, d: any) => acc + d.sum.pageViews, 0),
-        requests: stats.reduce((acc: number, d: any) => acc + d.sum.requests, 0),
-        uniqueVisitors: stats.reduce((acc: number, d: any) => acc + d.uniq.uniques, 0),
+        pageViews: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.sum.pageViews, 0),
+        requests: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.sum.requests, 0),
+        uniqueVisitors: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.uniq.uniques, 0),
       }
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 interface User {
@@ -33,7 +33,7 @@ function timeAgo(date: string): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`activity:${ip}`, { windowMs: 60 * 1000, max: 60 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -86,7 +86,7 @@ export async function GET() {
       updated_at: new Date().toISOString()
     });
 
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 });
   }
 }

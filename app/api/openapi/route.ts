@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const spec = {
   openapi: '3.0.0',
@@ -115,13 +115,10 @@ const spec = {
       apiKey: {
         type: 'apiKey',
         in: 'header',
-        name: 'x-api-key'
-      }
-    }
   }
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`openapi:${ip}`, { windowMs: 60 * 1000, max: 60 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
