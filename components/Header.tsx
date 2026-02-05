@@ -1,11 +1,57 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { User } from '@/types';
+import { supabase } from '@/lib/supabase';
 import VerificationBadge from './VerificationBadge';
 
-export default function Header({ user }: { user?: User | null }) {
+export default function Header({ user: propUser }: { user?: User | null }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(propUser || null);
+
+  // If no user prop provided, fetch from Supabase Auth session
+  useEffect(() => {
+    if (propUser) {
+      setUser(propUser);
+      return;
+    }
+
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+        
+        if (userData) {
+          setUser(userData);
+        }
+      }
+    }
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+        
+        if (userData) {
+          setUser(userData);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [propUser]);
 
   return (
     <header className="bg-white border-b-4 border-orange-500 sticky top-0 z-50">
@@ -58,76 +104,37 @@ export default function Header({ user }: { user?: User | null }) {
             </svg>
           )}
         </button>
-      </div>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <nav className="md:hidden bg-gray-100 border-t border-gray-200">
-          <div className="px-4 py-4 space-y-3">
-            <Link 
-              href="/gigs" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Browse Gigs
-            </Link>
-            <Link 
-              href="/gigs/new" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Post Gig
-            </Link>
-            <Link 
-              href="/my-gigs" 
-              className="block text-gray-600 hover:text-gray-900 py-2 font-medium"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              📋 My Gigs
-            </Link>
-            <Link 
-              href="/leaderboard" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🏆 Leaderboard
-            </Link>
-            <Link 
-              href="/for-agents" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🤖 For Agents
-            </Link>
-            <Link 
-              href="/about" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              About
-            </Link>
-            {user ? (
-              <Link 
-                href={`/profile/${user.id}`} 
-                className="flex items-center gap-2 py-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
-                <span className="text-gray-900">{user.name}</span>
-                <VerificationBadge user={user} size="sm" />
-              </Link>
-            ) : (
-              <Link 
-                href="/signin" 
-                className="block bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-center font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Sign In
-              </Link>
-            )}
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b-4 border-orange-500 shadow-lg">
+            <nav className="flex flex-col p-4 space-y-4">
+              <Link href="/gigs" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>Browse Gigs</Link>
+              <Link href="/gigs/new" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>Post Gig</Link>
+              <Link href="/leaderboard" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>🏆 Leaderboard</Link>
+              <Link href="/about" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>About</Link>
+              <Link href="/for-agents" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>🤖 For Agents</Link>
+              {user ? (
+                <>
+                  <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition font-medium" onClick={() => setMobileMenuOpen(false)}>📋 My Gigs</Link>
+                  <Link href={`/profile/${user.id}`} className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+                    <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
+                    <span className="text-gray-900">{user.name}</span>
+                    <VerificationBadge user={user} size="sm" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition" onClick={() => setMobileMenuOpen(false)}>📋 My Gigs</Link>
+                  <Link href="/signin" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition text-center" onClick={() => setMobileMenuOpen(false)}>
+                    Sign In
+                  </Link>
+                </>
+              )}
+            </nav>
           </div>
-        </nav>
-      )}
+        )}
+      </div>
     </header>
   );
 }
