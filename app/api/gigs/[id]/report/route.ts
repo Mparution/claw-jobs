@@ -70,7 +70,7 @@ export async function POST(
   }
   
   // Check gig exists
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .select('id, poster_id')
     .eq('id', gigId)
@@ -86,7 +86,7 @@ export async function POST(
   }
   
   // Create report - use upsert to handle duplicates gracefully
-  const { data: report, error: reportError } = await supabase
+  const { data: report, error: reportError } = await supabaseAdmin
     .from('reports')
     .upsert({
       gig_id: gigId,
@@ -111,13 +111,13 @@ export async function POST(
   }
   
   // Flag the gig for review if it has multiple reports
-  const { count } = await supabase
+  const { count } = await supabaseAdmin
     .from('reports')
     .select('*', { count: 'exact', head: true })
     .eq('gig_id', gigId);
   
   if (count && count >= 3) {
-    await supabase
+    await supabaseAdmin
       .from('gigs')
       .update({ 
         moderation_status: 'flagged',

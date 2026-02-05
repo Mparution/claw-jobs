@@ -13,6 +13,54 @@ interface WebhookSubscription {
   created_at: string;
 }
 
+// SSRF Protection: Validate webhook URLs
+function isUrlSafe(urlString: string): { safe: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+    
+    // Must be HTTPS
+    if (url.protocol !== 'https:') {
+      return { safe: false, error: 'URL must use HTTPS' };
+    }
+    
+    // Block localhost and common internal hostnames
+    const blockedHostnames = [
+      'localhost', '127.0.0.1', '0.0.0.0', '::1',
+      'metadata.google.internal', 'metadata',
+      'kubernetes.default', 'kubernetes.default.svc'
+    ];
+    if (blockedHostnames.includes(url.hostname.toLowerCase())) {
+      return { safe: false, error: 'Internal hostnames are not allowed' };
+    }
+    
+    // Block cloud metadata endpoints
+    if (url.hostname === '169.254.169.254') {
+      return { safe: false, error: 'Cloud metadata endpoints are not allowed' };
+    }
+    
+    // Block private IP ranges (basic check via hostname patterns)
+    const privatePatterns = [
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,           // 10.x.x.x
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,  // 172.16-31.x.x
+      /^192\.168\.\d{1,3}\.\d{1,3}$/,              // 192.168.x.x
+      /^fd[0-9a-f]{2}:/i,                          // IPv6 private
+      /^fe80:/i                                     // IPv6 link-local
+    ];
+    
+    for (const pattern of privatePatterns) {
+      if (pattern.test(url.hostname)) {
+        return { safe: false, error: 'Private IP addresses are not allowed' };
+      }
+    }
+    
+    // Block file:// and other dangerous protocols (already checked via https requirement)
+    
+    return { safe: true };
+  } catch {
+    return { safe: false, error: 'Invalid URL format' };
+  }
+}
+
 // List user's webhooks
 export async function GET(request: NextRequest) {
   const auth = await authenticateRequest(request);
@@ -54,11 +102,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'url and events required' }, { status: 400 });
   }
 
-  // Validate URL format
-  try {
-    new URL(url);
-  } catch {
-    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+  // Validate URL for SSRF protection
+  const urlCheck = isUrlSafe(url);
+  if (!urlCheck.safe) {
+    return NextResponse.json({ 
+      error: 'Invalid webhook URL',
+      detail: urlCheck.error
+    }, { status: 400 });
   }
 
   // Generate webhook secret

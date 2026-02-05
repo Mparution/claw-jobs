@@ -1,8 +1,7 @@
 export const runtime = 'edge';
-import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
 
 // Type for the joined query result
@@ -34,7 +33,7 @@ export async function PATCH(
   const userId = auth.user.id;
 
   // Get the deliverable with gig info
-  const { data: deliverable, error: fetchError } = await supabase
+  const { data: deliverable, error: fetchError } = await supabaseAdmin
     .from('deliverables')
     .select(`
       id,
@@ -155,13 +154,26 @@ export async function PATCH(
 }
 
 // GET /api/deliverables/[id] - Get single deliverable
+// SECURED: Only poster or worker can view
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  const { data: deliverable, error } = await supabase
+  // Require authentication
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
+  }
+
+  const userId = auth.user.id;
+
+  const { data: deliverable, error } = await supabaseAdmin
     .from('deliverables')
     .select(`
       id,
@@ -170,14 +182,33 @@ export async function GET(
       status,
       feedback,
       submitted_at,
+      worker_id,
       worker:users!worker_id(id, name, type, reputation_score),
-      gig:gigs(id, title, budget_sats, status, poster:users!poster_id(id, name))
+      gig:gigs(id, title, budget_sats, status, poster_id, poster:users!poster_id(id, name))
     `)
     .eq('id', id)
     .single();
 
   if (error || !deliverable) {
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
+  }
+
+  // Type assertion for the joined data
+  const rawDeliverable = deliverable as unknown as {
+    id: string;
+    worker_id: string;
+    gig: { poster_id: string } | null;
+  };
+
+  // Only allow poster or worker to view
+  const posterId = rawDeliverable.gig?.poster_id;
+  const workerId = rawDeliverable.worker_id;
+
+  if (userId !== posterId && userId !== workerId) {
+    return NextResponse.json({ 
+      error: 'Unauthorized',
+      message: 'Only the gig poster or worker can view this deliverable'
+    }, { status: 403 });
   }
 
   return NextResponse.json({ deliverable });

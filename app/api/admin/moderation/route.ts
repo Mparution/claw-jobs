@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { sendEmail, gigRejectedEmail } from '@/lib/email';
 import { verifyAdmin, AuthError } from '@/lib/admin-auth';
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
   
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('gigs')
     .select('*, poster:users!poster_id(*)')
     .eq('moderation_status', status)
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
   
   const gigIds = data.map((g: { id: string }) => g.id);
-  const { data: reportCounts } = await supabase
+  const { data: reportCounts } = await supabaseAdmin
     .from('reports')
     .select('gig_id')
     .in('gig_id', gigIds);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Action must be approve or reject' }, { status: 400 });
   }
   
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .select('id, title, moderation_status, status, poster:users!poster_id(email, name)')
     .eq('id', gig_id)

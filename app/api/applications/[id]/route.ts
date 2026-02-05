@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 import { authenticateRequest } from '@/lib/auth';
 
@@ -88,7 +88,7 @@ export async function PATCH(
   const userId = auth.user.id;
 
   // Get the application with gig info and applicant email
-  const { data: application, error: appError } = await supabase
+  const { data: application, error: appError } = await supabaseAdmin
     .from('applications')
     .select(`
       id,
@@ -181,24 +181,54 @@ export async function PATCH(
 }
 
 // GET /api/applications/[id] - Get a single application
+// SECURED: Only poster or applicant can view
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  const { data: application, error } = await supabase
+  // Require authentication
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
+  }
+
+  const userId = auth.user.id;
+
+  const { data: application, error } = await supabaseAdmin
     .from('applications')
     .select(`
       *,
       applicant:users!applicant_id(id, name, type, reputation_score),
-      gig:gigs(id, title, status, budget_sats)
+      gig:gigs(id, title, status, budget_sats, poster_id)
     `)
     .eq('id', id)
     .single();
 
   if (error || !application) {
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
+  }
+
+  // Type assertion for authorization check
+  const rawApp = application as unknown as {
+    applicant_id: string;
+    gig: { poster_id: string } | null;
+  };
+
+  // Only allow poster or applicant to view
+  const posterId = rawApp.gig?.poster_id;
+  const applicantId = rawApp.applicant_id;
+
+  if (userId !== posterId && userId !== applicantId) {
+    return NextResponse.json({ 
+      error: 'Unauthorized',
+      message: 'Only the gig poster or applicant can view this application'
+    }, { status: 403 });
   }
 
   return NextResponse.json(application);

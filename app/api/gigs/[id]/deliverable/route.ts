@@ -1,9 +1,8 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
-import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 // POST /api/gigs/[id]/deliverable - Submit a deliverable
 export async function POST(
@@ -25,7 +24,7 @@ export async function POST(
   const userId = auth.user.id;
 
   // Get the gig
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .select('id, title, status, selected_worker_id, poster_id')
     .eq('id', gigId)
@@ -126,13 +125,45 @@ export async function POST(
 }
 
 // GET /api/gigs/[id]/deliverable - Get deliverables for a gig
+// SECURED: Only poster or assigned worker can view deliverables
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: gigId } = await params;
 
-  const { data: deliverables, error } = await supabase
+  // Require authentication
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
+  }
+
+  const userId = auth.user.id;
+
+  // Get the gig to check authorization
+  const { data: gig, error: gigError } = await supabaseAdmin
+    .from('gigs')
+    .select('id, poster_id, selected_worker_id')
+    .eq('id', gigId)
+    .single();
+
+  if (gigError || !gig) {
+    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
+  }
+
+  // Only allow poster or assigned worker to view deliverables
+  if (gig.poster_id !== userId && gig.selected_worker_id !== userId) {
+    return NextResponse.json({ 
+      error: 'Unauthorized',
+      message: 'Only the gig poster or assigned worker can view deliverables'
+    }, { status: 403 });
+  }
+
+  const { data: deliverables, error } = await supabaseAdmin
     .from('deliverables')
     .select(`
       id,

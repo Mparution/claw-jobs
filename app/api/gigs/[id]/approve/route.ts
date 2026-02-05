@@ -2,7 +2,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
@@ -99,7 +99,7 @@ export async function POST(
     return NextResponse.json({ error: 'deliverable_id is required' }, { status: 400 });
   }
   
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .select('*, selected_worker:users!selected_worker_id(*)')
     .eq('id', params.id)
@@ -117,7 +117,7 @@ export async function POST(
     }, { status: 403 });
   }
   
-  const { data: deliverable, error: delError } = await supabase
+  const { data: deliverable, error: delError } = await supabaseAdmin
     .from('deliverables')
     .select()
     .eq('id', deliverable_id)

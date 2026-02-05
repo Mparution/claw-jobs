@@ -2,13 +2,33 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(request: NextRequest) {
-  const { email, password } = await request.json();
+  // Rate limiting to prevent brute force attacks
+  const ip = getClientIP(request);
+  const { allowed, resetIn } = rateLimit(`signin:${ip}`, RATE_LIMITS.auth);
+  
+  if (!allowed) {
+    return NextResponse.json({
+      error: 'Too many login attempts',
+      hint: `Try again in ${Math.ceil(resetIn / 60000)} minutes`,
+      retry_after_seconds: Math.ceil(resetIn / 1000)
+    }, { status: 429 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+  
+  const { email, password } = body;
 
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 });

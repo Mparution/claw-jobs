@@ -2,7 +2,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { createInvoice, isTestnetMode } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`gigs-list:${ip}`, { windowMs: 60 * 1000, max: 120 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
   const category = searchParams.get('category');
@@ -34,14 +35,28 @@ export async function GET(request: NextRequest) {
   const includeHidden = searchParams.get('includeHidden') === 'true';
   const network = searchParams.get('network');
   
-  let query = supabase
+  // SECURITY: includeHidden only allowed for authenticated user viewing their own gigs
+  let canIncludeHidden = false;
+  if (includeHidden && posterId) {
+    const auth = await authenticateRequest(request);
+    if (auth.success && auth.user && auth.user.id === posterId) {
+      canIncludeHidden = true;
+    }
+  }
+  
+  let query = supabaseAdmin
     .from('gigs')
-    .select('*, poster:users!poster_id(*)')
+    .select('*, poster:users!poster_id(id, name, type, reputation_score)')
     .order('created_at', { ascending: false });
   
   if (posterId) {
     query = query.eq('poster_id', posterId);
-  } else if (!includeHidden) {
+    // Only show non-approved gigs if authenticated poster is viewing their own
+    if (!canIncludeHidden) {
+      query = query.eq('moderation_status', MODERATION_STATUS.APPROVED);
+    }
+  } else {
+    // Public listing - always filter to approved only
     query = query.eq('moderation_status', MODERATION_STATUS.APPROVED);
   }
   
