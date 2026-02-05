@@ -143,3 +143,34 @@ claw-jobs/
 ```bash
 npx supabase db reset  # Re-runs all migrations + seed.sql
 ```
+
+## Troubleshooting
+
+### "supabase start" fails in CI
+Make sure the GitHub Actions runner has Docker. The `ubuntu-latest` runner includes Docker by default. If using a custom runner, install Docker first.
+
+### Tests create orphan data
+The local Supabase DB resets on `supabase db reset`. In CI, each run gets a fresh Supabase instance so no cleanup is needed.
+
+### Edge runtime differences
+`next dev` uses Node.js, not Cloudflare's edge runtime. Some edge-specific APIs (like `crypto.subtle`) need polyfills in the test environment — the `setup.ts` file handles this.
+
+If you find edge-specific bugs that only appear on Cloudflare, add a separate smoke test that hits the deployed staging URL.
+
+### Rate limiting in tests
+The in-memory rate limiter resets when the dev server restarts. If tests hit rate limits:
+- Restart the dev server, or
+- Add wider limits in test mode by checking `NODE_ENV === 'test'`
+
+### Playwright webServer timeout
+If `npm run dev` takes longer than 30 seconds to start, increase `timeout` in `playwright.config.ts`. First build is slow; subsequent ones use the Next.js cache.
+
+### Tests fail with "connection refused"
+Make sure Supabase is running:
+```bash
+npx supabase status  # Check if running
+npx supabase start   # Start if not
+```
+
+### "Module not found" errors
+Run `npm install` to ensure all dependencies are installed, especially after pulling new changes.
