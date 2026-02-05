@@ -1,65 +1,148 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [staging, main]
+    branches: [main, staging]
   pull_request:
     branches: [main, staging]
 
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL || 'http://127.0.0.1:54321' }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY || 'placeholder' }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY || 'placeholder' }}
+  LIGHTNING_MODE: mock
+  LIGHTNING_NETWORK: testnet
+  ADMIN_SECRET: test-admin-secret-for-ci
+
 jobs:
-  lint-and-typecheck:
-    name: Lint & Type Check
+  # ─────────────────────────────────────────────
+  # Job 1: Lint + Type Check (fast, no DB needed)
+  # ─────────────────────────────────────────────
+  lint:
+    name: Lint & Types
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Removed cache: 'npm' - no package-lock.json in repo
-      - run: npm install
-      
-      # Lint - fail on errors, warn on warnings
-      - name: Lint
-        run: npm run lint -- --max-warnings 50
-        
-      # Type Check - strict mode
-      - name: Type Check
-        run: npx tsc --noEmit
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
+          cache: 'npm'
 
-  test-deployment:
-    name: Test Live Deployment
+      - run: npm ci || npm install
+
+      - run: npm run lint -- --max-warnings 50
+
+      - run: npx tsc --noEmit
+
+  # ─────────────────────────────────────────────
+  # Job 2: Unit Tests (fast, no DB needed)
+  # ─────────────────────────────────────────────
+  unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    # Only run after Cloudflare has time to deploy
-    if: github.event_name == 'push'
-    
     steps:
-      - name: Determine environment URL
-        id: env-url
-        run: |
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "url=https://claw-jobs.com" >> $GITHUB_OUTPUT
-          else
-            echo "url=https://staging.claw-jobs.pages.dev" >> $GITHUB_OUTPUT
-          fi
+      - uses: actions/checkout@v4
 
-      - name: Wait for Cloudflare deployment
-        run: |
-          echo "Waiting for deployment at ${{ steps.env-url.outputs.url }}..."
-          for i in {1..30}; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.env-url.outputs.url }}/api/health" || echo "000")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Site is live!"
-              exit 0
-            fi
-            echo "Attempt $i/30: HTTP $HTTP_CODE, waiting 10s..."
-            sleep 10
-          done
-          echo "⚠️ Deployment check timed out (site may still be deploying)"
-          exit 0  # Don't fail - Cloudflare deploys independently
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Health check
+      - run: npm ci || npm install
+
+      - run: npm run test:unit -- --ci --coverage
+        continue-on-error: true  # Don't fail if no unit tests yet
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage/
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────
+  # Job 3: Flow Tests (needs local Supabase)
+  # ─────────────────────────────────────────────
+  flows:
+    name: Flow Tests
+    runs-on: ubuntu-latest
+    needs: [lint]  # Don't waste CI minutes if lint fails
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci || npm install
+
+      # Install Playwright browsers
+      - run: npx playwright install --with-deps chromium
+
+      # Start local Supabase (provides Postgres + Auth)
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase
         run: |
-          curl -sf "${{ steps.env-url.outputs.url }}/api/health" | jq . || echo "Health check skipped"
+          supabase start
+          # Capture the credentials Supabase prints
+          echo "NEXT_PUBLIC_SUPABASE_URL=$(supabase status -o env | grep API_URL | cut -d= -f2)" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o env | grep ANON_KEY | cut -d= -f2)" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | grep SERVICE_ROLE_KEY | cut -d= -f2)" >> $GITHUB_ENV
+
+      - name: Run migrations
+        run: supabase db reset
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: test
+
+      - name: Run flow tests
+        run: npm run test:flows
+        env:
+          CI: true
+          TEST_BASE_URL: http://localhost:3000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
+
+  # ─────────────────────────────────────────────
+  # Job 4: Build Check
+  # ─────────────────────────────────────────────
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci || npm install
+
+      - name: Build
+        run: npm run build
+        env:
+          # Use placeholder values for build check
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
