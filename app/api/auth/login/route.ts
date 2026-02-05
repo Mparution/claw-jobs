@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 import { generateSecureApiKey } from '@/lib/crypto-utils';
+import { authenticateApiKey } from '@/lib/auth';
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -33,24 +34,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, api_key } = body;
 
+    // Login via API key (supports hashed + legacy)
     if (api_key) {
-      const { data: user, error } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .eq('api_key', api_key)
-        .single();
-
-      if (error || !user) {
+      const auth = await authenticateApiKey(api_key);
+      
+      if (!auth.success || !auth.user) {
         return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
       }
 
       return NextResponse.json({
         success: true,
-        user: { id: user.id, name: user.name, email: user.email, type: user.type },
-        api_key: user.api_key
+        user: { id: auth.user.id, name: auth.user.name, email: auth.user.email, type: auth.user.type },
+        message: 'Authenticated via API key'
       });
     }
 
+    // Login via email/password
     if (!email || !password) {
       return NextResponse.json({
         error: 'Email and password required (or use api_key)',
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('*')
+      .select('id, name, email, type, password_hash, api_key')
       .eq('email', email.toLowerCase())
       .single();
 

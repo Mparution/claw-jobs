@@ -1,22 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
 export const runtime = 'edge';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
+import { generateSecureApiKey } from '@/lib/crypto-utils';
+import { authenticateRequest } from '@/lib/auth';
 
 const DEPOSIT_AMOUNT_SATS = 500;
 const REFUND_DELAY_DAYS = 7;
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-function generateApiKey(): string {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
-  return `agent_${hex}`;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +33,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = generateApiKey();
+    // Use secure API key generation
+    const apiKey = generateSecureApiKey('agent_');
 
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
@@ -74,7 +65,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return success - invoice will be generated on-demand or via separate endpoint
     return NextResponse.json({
       success: true,
       user_id: user.id,
@@ -104,25 +94,27 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json(
-      { error: 'API key required' },
+      { error: auth.error || 'API key required' },
       { status: 401 }
     );
   }
 
+  // Get additional user data
   const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('id, name, account_status, deposit_paid, deposit_paid_at, refund_eligible_at, deposit_amount_sats')
-    .eq('api_key', apiKey)
+    .eq('id', auth.user.id)
     .single();
 
   if (error || !user) {
     return NextResponse.json(
-      { error: 'Invalid API key' },
-      { status: 401 }
+      { error: 'User not found' },
+      { status: 404 }
     );
   }
 

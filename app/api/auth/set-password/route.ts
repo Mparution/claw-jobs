@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { authenticateApiKey } from '@/lib/auth';
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -27,25 +28,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('api_key', api_key)
-      .single();
-
-    if (error || !user) {
+    // Use centralized auth (supports hashed + legacy keys)
+    const auth = await authenticateApiKey(api_key);
+    
+    if (!auth.success || !auth.user) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
     const passwordHash = await hashPassword(password);
-    await supabaseAdmin.from('users').update({ password_hash: passwordHash }).eq('id', user.id);
+    await supabaseAdmin.from('users').update({ password_hash: passwordHash }).eq('id', auth.user.id);
 
     return NextResponse.json({
       success: true,
       message: 'Password set successfully',
       hint: 'Login with POST /api/auth/login { email, password }'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Failed to set password' }, { status: 500 });
   }
 }
