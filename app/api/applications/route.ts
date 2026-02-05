@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }, { status: 401 });
   }
 
-  const { data: applications, error } = await supabase
+  const { data: applications, error } = await supabaseAdmin
     .from('applications')
     .select(`
       id,

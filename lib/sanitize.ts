@@ -40,3 +40,25 @@ export async function timingSafeEqual(a: string, b: string): Promise<boolean> {
   
   return result === 0;
 }
+
+/**
+ * Sanitize HTML content for safe rendering
+ * Removes potentially dangerous tags while preserving safe formatting
+ */
+export function sanitizeHtml(html: string): string {
+  if (!html) return '';
+  
+  // Remove script tags and their contents
+  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // Remove event handlers
+  clean = clean.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
+  
+  // Remove javascript: URLs
+  clean = clean.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
+  
+  // Remove data: URLs in src attributes (potential XSS vector)
+  clean = clean.replace(/src\s*=\s*["']data:[^"']*["']/gi, 'src=""');
+  
+  return clean;
+}
