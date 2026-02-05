@@ -9,7 +9,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = params.id;
+  const gigId = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
@@ -130,7 +130,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = params.id;
+  const gigId = params.id;
 
   // Require authentication
   const auth = await authenticateRequest(request);
