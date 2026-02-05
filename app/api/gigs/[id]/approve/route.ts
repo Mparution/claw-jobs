@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 
 // Send payment notification email
@@ -67,6 +68,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limiting
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`approve:${ip}`, { windowMs: 60 * 1000, max: 30 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   // ===========================================
   // SECURITY FIX: Use proper API key authentication
   // instead of trusting client-provided poster_id

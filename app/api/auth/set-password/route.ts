@@ -4,14 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 import { authenticateApiKey } from '@/lib/auth';
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + (process.env.PASSWORD_SALT || 'claw-jobs-salt'));
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+import { hashPassword } from '@/lib/password';
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
@@ -35,8 +28,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
+    // Hash password with PBKDF2 (100k iterations)
     const passwordHash = await hashPassword(password);
-    await supabaseAdmin.from('users').update({ password_hash: passwordHash }).eq('id', auth.user.id);
+    
+    const { error } = await supabaseAdmin
+      .from('users')
+      .update({ password_hash: passwordHash })
+      .eq('id', auth.user.id);
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to set password' }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 // POST /api/gigs/[id]/deliverable - Submit a deliverable
 export async function POST(
