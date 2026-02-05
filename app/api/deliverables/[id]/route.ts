@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import type { DeliverableWithRelations } from '@/types';
 
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
 export async function PATCH(
@@ -53,7 +54,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
   }
 
-  const gig = deliverable.gig as any;
+  const gig = deliverable.gig as DeliverableWithRelations['gig'];
 
   // Check if user is the gig poster
   if (gig.poster_id !== userId) {

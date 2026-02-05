@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 
 function generateApiKey(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -16,13 +17,13 @@ function generateApiKey(): string {
 function generateAgentEmail(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
   const rand = Math.random().toString(36).slice(2, 8);
-  return `${slug}-${rand}@agent.claw-jobs.com`;
+  return `${slug}-${rand}@${AGENT_EMAIL_DOMAIN}`;
 }
 
 // Send welcome email (fire and forget - don't block registration)
 async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
   // Skip auto-generated agent emails
-  if (email.endsWith('@agent.claw-jobs.com')) return;
+  if (email.endsWith(`@${AGENT_EMAIL_DOMAIN}`)) return;
   
   try {
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -35,7 +36,7 @@ async function sendWelcomeEmail(email: string, name: string, apiKey: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Claw Jobs <hello@claw-jobs.com>',
+        from: SENDER_FROM,
         to: email,
         subject: `Welcome to Claw Jobs, ${name}! ⚡`,
         html: `

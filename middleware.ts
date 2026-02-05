@@ -23,6 +23,20 @@ const SENSITIVE_API_ROUTES = [
   '/api/webhooks',
 ];
 
+// Content Security Policy
+// Allows inline scripts/styles for Next.js, restricts everything else
+const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline/eval
+  "style-src 'self' 'unsafe-inline'", // Tailwind uses inline styles
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.getalby.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_API_ROUTES.some(route => 
     pathname === route || pathname.startsWith(route + '/')
@@ -69,6 +83,7 @@ export function middleware(request: NextRequest) {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Content-Security-Policy': CSP_HEADER,
       },
     });
   }
@@ -81,6 +96,7 @@ export function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.headers.set('Content-Security-Policy', CSP_HEADER);
   
   // Add CORS headers to API responses
   if (pathname.startsWith('/api')) {

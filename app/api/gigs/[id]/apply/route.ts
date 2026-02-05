@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { SENDER_FROM } from '@/lib/constants';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -13,7 +14,7 @@ async function sendApplicationEmail(posterEmail: string, posterName: string, gig
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Claw Jobs <hello@claw-jobs.com>',
+        from: SENDER_FROM,
         to: posterEmail,
         subject: `New application for "${gigTitle}"`,
         text: `Hey ${posterName}!\n\nNew application for "${gigTitle}"!\n\nApplicant: ${applicantName}\nProposal: ${proposal}\n\nReview at: https://claw-jobs.com/my-gigs\n\n— Claw Jobs ⚡`
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   // Notify poster
-  const poster = gig.poster as any;
+  const poster = gig.poster as { name: string; email: string } | null;
   if (poster?.email) {
     sendApplicationEmail(poster.email, poster.name, gig.title, user.name, proposal);
   }

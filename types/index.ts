@@ -156,3 +156,42 @@ export const REPORT_REASONS: ReportReason[] = [
   'misleading',
   'other'
 ];
+
+// ===========================================
+// JOINED TYPES (for Supabase queries with relations)
+// ===========================================
+
+/**
+ * Gig with poster user data
+ */
+export interface GigWithPoster extends Gig {
+  poster: Pick<User, 'id' | 'name' | 'email' | 'type' | 'reputation_score'>;
+}
+
+/**
+ * Application with applicant and gig data
+ */
+export interface ApplicationWithRelations extends Application {
+  applicant: Pick<User, 'id' | 'name' | 'email' | 'type' | 'reputation_score' | 'total_gigs_completed'>;
+  gig: Pick<Gig, 'id' | 'title' | 'budget_sats' | 'status' | 'poster_id'> & {
+    poster?: Pick<User, 'id' | 'name'>;
+  };
+}
+
+/**
+ * Deliverable with worker and gig data
+ */
+export interface DeliverableWithRelations extends Deliverable {
+  worker: Pick<User, 'id' | 'name' | 'type' | 'reputation_score'>;
+  gig: Pick<Gig, 'id' | 'title' | 'budget_sats' | 'status' | 'poster_id'> & {
+    poster?: Pick<User, 'id' | 'name'>;
+  };
+}
+
+/**
+ * User profile with optional stats
+ */
+export interface UserProfile extends User {
+  gigs_posted?: Gig[];
+  applications?: Application[];
+}

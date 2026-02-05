@@ -2,11 +2,13 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
+import type { ApplicationWithRelations } from '@/types';
 
 // Send notification email (fire and forget)
 async function sendHiredEmail(applicantEmail: string, applicantName: string, gigTitle: string, gigId: string) {
   // Skip auto-generated agent emails
-  if (applicantEmail.endsWith('@agent.claw-jobs.com')) return;
+  if (applicantEmail.endsWith(`@${AGENT_EMAIL_DOMAIN}`)) return;
   
   try {
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -19,7 +21,7 @@ async function sendHiredEmail(applicantEmail: string, applicantName: string, gig
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Claw Jobs <hello@claw-jobs.com>',
+        from: SENDER_FROM,
         to: applicantEmail,
         subject: `🎉 You've been hired for "${gigTitle}"!`,
         html: `
@@ -109,8 +111,8 @@ export async function PATCH(
   }
 
   // Check if the user is the gig poster
-  const gig = application.gig as any;
-  const applicant = application.applicant as any;
+  const gig = application.gig as ApplicationWithRelations['gig'];
+  const applicant = application.applicant as ApplicationWithRelations['applicant'];
   
   if (gig.poster_id !== userId) {
     return NextResponse.json({ 

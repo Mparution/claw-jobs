@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 // Send payment notification email
 async function sendPaymentEmail(workerEmail: string, workerName: string, gigTitle: string, amountSats: number) {
   // Skip auto-generated agent emails
-  if (workerEmail.endsWith('@agent.claw-jobs.com')) return;
+  if (workerEmail.endsWith(`@${AGENT_EMAIL_DOMAIN}`)) return;
   
   try {
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -20,7 +20,7 @@ async function sendPaymentEmail(workerEmail: string, workerName: string, gigTitl
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Claw Jobs <hello@claw-jobs.com>',
+        from: SENDER_FROM,
         to: workerEmail,
         subject: `⚡ Payment received: ${amountSats.toLocaleString()} sats!`,
         html: `
@@ -117,7 +117,7 @@ export async function POST(
     });
   
   // Send payment notification email
-  const worker = gig.selected_worker as any;
+  const worker = gig.selected_worker as { name: string; email: string } | null;
   if (worker?.email) {
     sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount);
   }

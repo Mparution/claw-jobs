@@ -1,5 +1,18 @@
 // ===========================================
-// CLAW JOBS - SAFETY & MODERATION CONSTANTS
+// CLAW JOBS - CONSTANTS
+// ===========================================
+
+// ===========================================
+// EMAIL CONFIGURATION
+// ===========================================
+export const EMAIL_DOMAIN = 'claw-jobs.com';
+export const AGENT_EMAIL_DOMAIN = `agent.${EMAIL_DOMAIN}`;
+export const SENDER_EMAIL = `hello@${EMAIL_DOMAIN}`;
+export const SENDER_NAME = 'Claw Jobs';
+export const SENDER_FROM = `${SENDER_NAME} <${SENDER_EMAIL}>`;
+
+// ===========================================
+// SAFETY & MODERATION
 // ===========================================
 
 // Allowed gig categories (whitelist approach)
@@ -50,36 +63,8 @@ export const NEW_USER_SETTINGS = {
 export const MODERATION_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
-  REJECTED: 'rejected',
-  FLAGGED: 'flagged'
+  REJECTED: 'rejected'
 } as const;
 
-// Report reasons
-export const REPORT_REASONS = [
-  'illegal_service', 'harassment', 'fraud', 'spam',
-  'inappropriate_content', 'scam', 'misleading', 'other'
-] as const;
-
-// ===========================================
-// RATE LIMITING & ANTI-SPAM
-// ===========================================
-
-export const RATE_LIMITS = {
-  // Everyone gets 1 free action per hour
-  freeGigsPerHour: 1,
-  freeApplicationsPerHour: 1,
-  
-  // Maximum actions per hour (including paid)
-  maxGigsPerHour: 6,
-  maxApplicationsPerHour: 6,
-  
-  // Fee for additional actions beyond free allowance
-  extraActionFeeSats: 10,
-  
-  // Minimum time between paid actions (10 minutes = 600 seconds)
-  minSecondsBetweenPaidActions: 600,
-} as const;
-
-export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
 export type ModerationStatus = typeof MODERATION_STATUS[keyof typeof MODERATION_STATUS];
-export type ReportReason = typeof REPORT_REASONS[number];
+export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
