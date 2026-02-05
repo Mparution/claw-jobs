@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   // SECURITY FIX: Require admin auth for analytics data
   const adminAuth = await verifyAdmin(request);
   if (adminAuth instanceof AuthError) {
-    return adminAuth.response();
+    return adminAuth.response;
   }
 
   const ip = getClientIP(request);
