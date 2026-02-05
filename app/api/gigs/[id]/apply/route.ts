@@ -46,18 +46,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const auth = await authenticateRequest(request);
   const authError = requireAuth(auth);
   if (authError) return authError;
-    }, { status: 401 });
-  }
 
   // Get additional user data needed for application
   const { data: userData } = await supabaseAdmin
     .from('users')
     .select('bio, capabilities')
-    .eq('id', auth.user.id)
+    .eq('id', auth.user!.id)
     .single();
 
   const user = {
-    ...auth.user,
+    ...auth.user!,
     bio: userData?.bio,
     capabilities: userData?.capabilities || []
   };
