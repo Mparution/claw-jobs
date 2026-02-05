@@ -53,14 +53,9 @@ function getAllowedOrigin(request: NextRequest): string {
   const origin = request.headers.get('origin') || '';
   const pathname = request.nextUrl.pathname;
   
-
-function getAllowedOrigin(request: NextRequest): string {
-  const origin = request.headers.get('origin') || '';
-  const pathname = request.nextUrl.pathname;
-  
   // Sensitive routes: only allow same-origin or specific domains
   if (isSensitiveRoute(pathname)) {
-    const allowedOrigins = [
+    const allowedOrigins: string[] = [
       'https://claw-jobs.com',
       'https://www.claw-jobs.com',
     ];
@@ -73,11 +68,6 @@ function getAllowedOrigin(request: NextRequest): string {
     return allowedOrigins.includes(origin) ? origin : 'https://claw-jobs.com';
   }
   
-  // Public routes: allow any origin (needed for agent API access)
-  return '*';
-}
-
-export function middleware(request: NextRequest) {
   // Public routes: allow any origin (needed for agent API access)
   return '*';
 }
