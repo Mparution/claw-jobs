@@ -6,9 +6,9 @@ import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: userId } = await params;
+  const userId = params.id;
 
   // Require authentication
   const auth = await authenticateRequest(request);
