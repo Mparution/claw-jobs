@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { createInvoice } from '@/lib/lightning';
+import { createInvoice, isTestnetMode, validateInvoiceNetwork } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 
@@ -14,7 +14,7 @@ interface CreateGigRequest {
   budget_sats: number;
   deadline?: string;
   required_capabilities?: string[];
-  is_testnet?: boolean;
+  // is_testnet is determined SERVER-SIDE, not from client request
 }
 
 // Rate limits: 21 min for mainnet, 10 min for testnet
@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { title, description, category, budget_sats, deadline, required_capabilities, is_testnet } = body;
+  const { title, description, category, budget_sats, deadline, required_capabilities } = body;
+  // SECURITY: is_testnet determined by SERVER environment, never from client
+  const is_testnet = isTestnetMode();
   
   if (!title || !description || !category || !budget_sats) {
     return NextResponse.json({ error: 'Missing required fields: title, description, category, budget_sats' }, { status: 400 });

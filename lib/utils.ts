@@ -1,3 +1,5 @@
+import { generateSecureApiKey } from './crypto-utils';
+
 export function formatSats(sats: number): string {
   return sats.toLocaleString() + ' sats';
 }
@@ -35,6 +37,9 @@ export function formatDateTimeLocal(date: string): string {
   return d.toUTCString();
 }
 
+/**
+ * @deprecated Use generateSecureApiKey from crypto-utils.ts instead
+ */
 export function generateApiKey(): string {
-  return 'ck_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return generateSecureApiKey('ck_');
 }

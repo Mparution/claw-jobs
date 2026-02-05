@@ -4,19 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
-
-function generateApiKey(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let key = 'clawjobs_';
-  for (let i = 0; i < 32; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return key;
-}
+import { generateSecureApiKey, getSecureShortCode } from '@/lib/crypto-utils';
 
 function generateAgentEmail(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
-  const rand = Math.random().toString(36).slice(2, 8);
+  const rand = getSecureShortCode(6);
   return `${slug}-${rand}@${AGENT_EMAIL_DOMAIN}`;
 }
 
@@ -136,7 +128,8 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
-    const api_key = generateApiKey();
+    // Generate secure API key
+    const api_key = generateSecureApiKey();
 
     const { data: user, error } = await supabaseAdmin
       .from('users')

@@ -72,9 +72,10 @@ const TESTNET_NWC_URL = process.env.TESTNET_NWC_URL;
 const mockPayments = new Map<string, { paid: boolean; amount: number }>();
 
 function generateMockHash(): string {
-  return Array.from({ length: 64 }, () => 
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('');
+  // Use crypto.getRandomValues for secure random generation
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function getClient(testnet = false): Promise<nwc.NWCClient> {
@@ -236,4 +237,42 @@ export function getLightningMode(): 'mock' | 'testnet-enabled' | 'mainnet' {
 // Check if testnet is available
 export function isTestnetAvailable(): boolean {
   return isMockMode || !!TESTNET_NWC_URL;
+}
+
+// ===========================================
+// SERVER-SIDE NETWORK MODE (CRITICAL FIX 4)
+// ===========================================
+// Network mode is determined by SERVER environment, never by client.
+// Prevents attackers from sending is_testnet=true to bypass escrow payment.
+
+/**
+ * Determine if we're in testnet mode based on server environment
+ * NEVER trust client-provided is_testnet parameter
+ */
+export function isTestnetMode(): boolean {
+  return process.env.LIGHTNING_NETWORK === 'testnet' || 
+         process.env.NODE_ENV === 'development' ||
+         isMockMode;
+}
+
+/**
+ * Validate that an invoice matches the expected network
+ */
+export function validateInvoiceNetwork(invoice: string): boolean {
+  if (isTestnetMode()) {
+    // Testnet invoices start with lntb, or simulated ones
+    return invoice.startsWith('lntb') || invoice.startsWith('lntbs') || 
+           invoice.includes('testnet') || invoice.includes('mock');
+  }
+  // Mainnet invoices start with lnbc
+  return invoice.startsWith('lnbc');
+}
+
+/**
+ * Get the current network mode for display/logging
+ */
+export function getNetworkMode(): 'mainnet' | 'testnet' | 'mock' {
+  if (isMockMode) return 'mock';
+  if (isTestnetMode()) return 'testnet';
+  return 'mainnet';
 }

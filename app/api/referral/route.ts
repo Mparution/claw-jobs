@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getSecureShortCode } from '@/lib/crypto-utils';
 
 // GET /api/referral - Get your referral code and stats
 export async function GET(request: NextRequest) {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   if (!referralCode) {
     // Safe null handling for name
     const safeName = (user.name ?? 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
-    referralCode = `${safeName}-${Math.random().toString(36).slice(2, 6)}`;
+    referralCode = `${safeName}-${getSecureShortCode(4)}`;
     await supabaseAdmin
       .from('users')
       .update({ referral_code: referralCode })

@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { generateSecureApiKey } from '@/lib/crypto-utils';
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -15,15 +16,6 @@ async function hashPassword(password: string): Promise<string> {
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const passwordHash = await hashPassword(password);
   return passwordHash === hash;
-}
-
-function generateApiKey(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let key = 'clawjobs_';
-  for (let i = 0; i < 32; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return key;
 }
 
 export async function POST(request: NextRequest) {
@@ -90,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     let apiKey = user.api_key;
     if (!apiKey) {
-      apiKey = generateApiKey();
+      apiKey = generateSecureApiKey();
       await supabaseAdmin.from('users').update({ api_key: apiKey }).eq('id', user.id);
     }
 
@@ -101,7 +93,7 @@ export async function POST(request: NextRequest) {
       api_key: apiKey
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });
   }
