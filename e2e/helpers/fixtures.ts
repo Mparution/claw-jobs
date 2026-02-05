@@ -12,7 +12,6 @@ export interface TestUser {
 
 /**
  * Register a fresh test user via the API and return their credentials.
- * Uses the /api/auth/register endpoint (agent-style, returns API key).
  */
 export async function registerUser(
   request: APIRequestContext,
@@ -56,7 +55,7 @@ export async function createGig(
     headers: { 'x-api-key': apiKey },
     data: {
       title: overrides.title || 'Test Gig: Summarize a document',
-      description: overrides.description || 'Please read the attached document and provide a 500 word summary covering the key points.',
+      description: overrides.description || 'Please read the attached document and provide a 500 word summary.',
       category: overrides.category || 'Research & Analysis',
       budget_sats: overrides.budget_sats || 5000,
       skills_required: overrides.skills_required || ['research', 'writing'],
@@ -66,11 +65,11 @@ export async function createGig(
   });
 
   const data = await res.json();
-  return { status: res.status(), ...data };
+  return { status: res.status(), id: data.gig?.id || data.id, ...data };
 }
 
 /**
- * Apply to a gig as the given user. Returns the application object.
+ * Apply to a gig as the given user.
  */
 export async function applyToGig(
   request: APIRequestContext,
@@ -81,13 +80,13 @@ export async function applyToGig(
   const res = await request.post(`${BASE}/api/gigs/${gigId}/apply`, {
     headers: { 'x-api-key': apiKey },
     data: {
-      proposal: proposal || 'I have extensive experience with this type of work and can deliver high-quality results within the deadline.',
+      proposal: proposal || 'I have extensive experience and can deliver high-quality results.',
       proposed_price_sats: 5000,
     },
   });
 
   const data = await res.json();
-  return { status: res.status(), ...data };
+  return { status: res.status(), application: data.application || data, ...data };
 }
 
 /**
@@ -104,11 +103,11 @@ export async function acceptApplication(
   });
 
   const data = await res.json();
-  return { status: res.status(), ...data };
+  return { status: res.status(), success: data.success ?? res.ok(), ...data };
 }
 
 /**
- * Submit a deliverable for a gig (as the worker).
+ * Submit a deliverable (as the worker).
  */
 export async function submitDeliverable(
   request: APIRequestContext,
@@ -119,31 +118,30 @@ export async function submitDeliverable(
   const res = await request.post(`${BASE}/api/gigs/${gigId}/deliverable`, {
     headers: { 'x-api-key': apiKey },
     data: {
-      content: content || 'Here is my completed work. All requirements have been met.',
-      files: [],
+      content: content || 'Here is the completed work. The document has been summarized as requested.',
     },
   });
 
   const data = await res.json();
-  return { status: res.status(), ...data };
+  return { 
+    status: res.status(), 
+    deliverable_id: data.deliverable_id || data.deliverable?.id || data.id,
+    ...data 
+  };
 }
 
 /**
- * Approve a deliverable and release payment (as the gig poster).
+ * Approve a deliverable and trigger payment (as the poster).
  */
 export async function approveDeliverable(
   request: APIRequestContext,
   apiKey: string,
   gigId: string,
-  rating = 5,
-  feedback?: string
+  deliverableId?: string
 ) {
   const res = await request.post(`${BASE}/api/gigs/${gigId}/approve`, {
     headers: { 'x-api-key': apiKey },
-    data: {
-      rating,
-      feedback: feedback || 'Great work!',
-    },
+    data: deliverableId ? { deliverable_id: deliverableId } : {},
   });
 
   const data = await res.json();
@@ -156,11 +154,11 @@ export async function approveDeliverable(
 export async function getGig(request: APIRequestContext, gigId: string) {
   const res = await request.get(`${BASE}/api/gigs/${gigId}`);
   const data = await res.json();
-  return { status: res.status(), ...data };
+  return { status: res.status(), gig: data.gig || data, ...data };
 }
 
 /**
- * Get user profile by API key.
+ * Get user profile.
  */
 export async function getProfile(request: APIRequestContext, apiKey: string) {
   const res = await request.get(`${BASE}/api/me`, {
@@ -168,4 +166,14 @@ export async function getProfile(request: APIRequestContext, apiKey: string) {
   });
   const data = await res.json();
   return { status: res.status(), ...data };
+}
+
+/**
+ * List open gigs.
+ */
+export async function listGigs(request: APIRequestContext, params?: Record<string, string>) {
+  const query = params ? '?' + new URLSearchParams(params).toString() : '';
+  const res = await request.get(`${BASE}/api/gigs${query}`);
+  const data = await res.json();
+  return { status: res.status(), gigs: data.gigs || data, ...data };
 }
