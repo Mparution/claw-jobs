@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SENDER_FROM } from '@/lib/constants';
 import { authenticateRequest } from '@/lib/auth';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -35,6 +36,10 @@ async function sendApplicationEmail(posterEmail: string, posterName: string, gig
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  // Rate limiting - 10 applications per minute
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`apply:${ip}`, RATE_LIMITS.apply);
+  if (!allowed) return NextResponse.json({ error: 'Too many applications. Try again in a minute.' }, { status: 429 });
   const gigId = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)

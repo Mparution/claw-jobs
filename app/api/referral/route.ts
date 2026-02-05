@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -7,6 +8,9 @@ import { authenticateRequest } from '@/lib/auth';
 
 // GET /api/referral - Get your referral code and stats
 export async function GET(request: NextRequest) {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`referral:${ip}`, RATE_LIMITS.api);
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const auth = await authenticateRequest(request);
   
   if (!auth.success || !auth.user) {

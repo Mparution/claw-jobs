@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';

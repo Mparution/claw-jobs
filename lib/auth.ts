@@ -177,6 +177,21 @@ function getCredentialsFromRequest(request: Request): {
 }
 
 /**
+ * Extract API key from request headers
+ * Used by admin-auth.ts and other modules that need just the key
+ */
+export function getApiKeyFromRequest(request: Request): string | null {
+  const apiKey = request.headers.get('x-api-key');
+  if (apiKey) return apiKey;
+  
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  return null;
+}
+
+/**
  * Main authentication function - use this in all API routes
  * 
  * Priority:

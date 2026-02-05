@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 interface Application {
   id: string;
@@ -14,6 +15,10 @@ interface Application {
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`applications:${ip}`, RATE_LIMITS.api);
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
   

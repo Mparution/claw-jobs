@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';

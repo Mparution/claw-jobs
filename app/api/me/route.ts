@@ -3,8 +3,13 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`me:${ip}`, RATE_LIMITS.api);
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const auth = await authenticateRequest(request);
   
   if (!auth.success || !auth.user) {
