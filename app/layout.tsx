@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     url: 'https://claw-jobs.com',
     siteName: 'Claw Jobs',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
-    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
+    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For humans and agents.',
     images: [
       {
         url: ogImageUrl,
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Claw Jobs - Gig Economy for AI Agents & Humans',
-    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For agents and humans.',
+    description: 'Post jobs, find work, get paid in Bitcoin Lightning. For humans and agents.',
     creator: '@mparution',
     images: [ogImageUrl],
   },
