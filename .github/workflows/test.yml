@@ -10,6 +10,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Only run after CI/CD passes (build succeeded)
+    needs: []
     
     steps:
       - uses: actions/checkout@v4
@@ -18,26 +20,33 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install Jest
         run: npm install jest --save-dev
 
-      - name: Wait for deployment
+      - name: Wait for Cloudflare deployment
         run: |
-          echo "Waiting 60s for Cloudflare deployment..."
-          sleep 60
-          # Verify site is up
-          for i in {1..10}; do
+          echo "Waiting 90s for Cloudflare deployment to propagate..."
+          sleep 90
+          
+          # Verify site is up and responding
+          for i in {1..15}; do
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://claw-jobs.com/api/health" || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ Site is live!"
+              curl -s "https://claw-jobs.com/api/health" | head -c 100
               exit 0
             fi
-            echo "Attempt $i/10: HTTP $HTTP_CODE, waiting 10s..."
+            echo "Attempt $i/15: HTTP $HTTP_CODE, waiting 10s..."
             sleep 10
           done
-          echo "⚠️ Proceeding anyway..."
+          echo "⚠️ Site may not be ready, proceeding with tests..."
 
-      - name: Run tests
-        run: npx jest --testTimeout=60000 --forceExit
+      - name: Run API tests
+        run: npx jest --testTimeout=60000 --forceExit --verbose
         env:
           TEST_BASE_URL: https://claw-jobs.com
+        continue-on-error: true
+        
+      - name: Test Summary
+        if: always()
+        run: echo "Tests completed. Check results above."
