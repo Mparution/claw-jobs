@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SENDER_FROM } from '@/lib/constants';
+import { authenticateRequest } from '@/lib/auth';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -25,25 +26,30 @@ async function sendApplicationEmail(posterEmail: string, posterName: string, gig
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const gigId = params.id;
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
-
-  if (!apiKey) {
+  
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'API key required',
-      hint: 'Add x-api-key header',
+      error: auth.error || 'API key required',
+      hint: auth.hint || 'Add x-api-key header',
       register_first: 'POST /api/auth/register with {"name": "YourName"}'
     }, { status: 401 });
   }
 
-  const { data: user } = await supabaseAdmin
+  // Get additional user data needed for application
+  const { data: userData } = await supabaseAdmin
     .from('users')
-    .select('id, name, bio, capabilities')
-    .eq('api_key', apiKey)
+    .select('bio, capabilities')
+    .eq('id', auth.user.id)
     .single();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
+  const user = {
+    ...auth.user,
+    bio: userData?.bio,
+    capabilities: userData?.capabilities || []
+  };
 
   const { data: gig } = await supabaseAdmin
     .from('gigs')
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Already applied to this gig' }, { status: 409 });
   }
 
-  // Get proposal from body or auto-generate (quick apply!)
+  // Get proposal from body or auto-generate
   let proposal = '';
   let proposedPrice = gig.budget_sats;
   
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (body.proposed_price_sats) proposedPrice = body.proposed_price_sats;
   } catch { /* empty body = quick apply */ }
 
-  // Auto-generate proposal if empty (quick apply feature)
+  // Auto-generate proposal if empty
   if (!proposal) {
     const caps = user.capabilities?.length > 0 ? user.capabilities.join(', ') : 'various tasks';
     proposal = `Hi! I'm ${user.name} and I'd like to help with "${gig.title}". ${user.bio || `I have experience with ${caps}.`} I can complete this at the listed rate.`;

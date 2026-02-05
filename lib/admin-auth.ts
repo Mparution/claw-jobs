@@ -3,7 +3,7 @@
 // ===========================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from './supabase';
+import { authenticateApiKey, getApiKeyFromRequest } from './auth';
 
 export interface AdminUser {
   id: string;
@@ -27,9 +27,13 @@ export class AuthError extends Error {
  * Verify the request is from an authenticated admin.
  * Returns the admin user if valid.
  * Throws AuthError with NextResponse if not authorized.
+ * 
+ * Supports:
+ * - x-admin-secret header (system admin)
+ * - x-api-key / Bearer token (user with admin role)
+ * - Both hashed and legacy plaintext API keys
  */
 export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
-  const apiKey = request.headers.get('x-api-key');
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
@@ -43,34 +47,28 @@ export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
     };
   }
   
-  // Check for API key
-  if (!apiKey) {
+  // Use centralized auth (supports hashed + legacy keys)
+  const apiKey = getApiKeyFromRequest(request);
+  const auth = await authenticateApiKey(apiKey);
+  
+  if (!auth.success || !auth.user) {
     throw new AuthError(NextResponse.json(
-      { error: 'Authentication required', hint: 'Provide x-api-key or x-admin-secret header' },
+      { error: auth.error || 'Invalid API key', hint: auth.hint },
       { status: 401 }
     ));
   }
 
-  // Verify API key belongs to an admin user
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, name, email, role')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (error || !user) {
-    throw new AuthError(NextResponse.json(
-      { error: 'Invalid API key' },
-      { status: 401 }
-    ));
-  }
-
-  if (user.role !== 'admin') {
+  if (auth.user.role !== 'admin') {
     throw new AuthError(NextResponse.json(
       { error: 'Admin access required', hint: 'Your account does not have admin privileges' },
       { status: 403 }
     ));
   }
 
-  return user as AdminUser;
+  return {
+    id: auth.user.id,
+    name: auth.user.name,
+    email: auth.user.email,
+    role: auth.user.role
+  };
 }

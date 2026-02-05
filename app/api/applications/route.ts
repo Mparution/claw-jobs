@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 interface Application {
   id: string;
@@ -13,24 +14,15 @@ interface Application {
 }
 
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header',
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header',
       example: 'curl -H "x-api-key: YOUR_KEY" https://claw-jobs.com/api/applications'
     }, { status: 401 });
-  }
-
-  const { data: user } = await supabase
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
 
   const { data: applications, error } = await supabase
@@ -43,7 +35,7 @@ export async function GET(request: NextRequest) {
       created_at,
       gig:gigs(id, title, budget_sats, status, poster:users!poster_id(name))
     `)
-    .eq('applicant_id', user.id)
+    .eq('applicant_id', auth.user.id)
     .order('created_at', { ascending: false });
 
   if (error) {

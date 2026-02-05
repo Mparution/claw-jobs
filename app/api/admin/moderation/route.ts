@@ -1,10 +1,11 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { sendEmail, gigRejectedEmail } from '@/lib/email';
 import { verifyAdmin, AuthError } from '@/lib/admin-auth';
+import { auditLog, getClientIPFromRequest } from '@/lib/audit-log';
 
 export async function GET(request: NextRequest) {
   try {
@@ -76,13 +77,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
   
+  // AUDIT LOG: Record moderation action BEFORE making changes
+  await auditLog({
+    actor_id: admin.id,
+    actor_type: 'admin',
+    action: action === 'approve' ? 'gig.approve' : 'gig.reject',
+    resource_type: 'gig',
+    resource_id: gig_id,
+    details: {
+      gig_title: gig.title,
+      previous_status: gig.moderation_status,
+      notes: notes || null
+    },
+    ip_address: getClientIPFromRequest(request)
+  });
+  
   const newModerationStatus = action === 'approve' 
     ? MODERATION_STATUS.APPROVED 
     : MODERATION_STATUS.REJECTED;
   
   const newGigStatus = action === 'approve' ? 'open' : 'rejected';
   
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from('gigs')
     .update({
       moderation_status: newModerationStatus,
@@ -97,7 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
   
-  await supabase
+  await supabaseAdmin
     .from('moderation_log')
     .insert({
       gig_id,

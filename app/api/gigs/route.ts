@@ -6,6 +6,7 @@ import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { createInvoice, isTestnetMode } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
+import { authenticateRequest } from '@/lib/auth';
 
 interface CreateGigRequest {
   title: string;
@@ -14,12 +15,11 @@ interface CreateGigRequest {
   budget_sats: number;
   deadline?: string;
   required_capabilities?: string[];
-  // is_testnet is determined SERVER-SIDE, not from client request
 }
 
 // Rate limits: 21 min for mainnet, 10 min for testnet
-const MAINNET_COOLDOWN_MS = 21 * 60 * 1000; // 21 minutes
-const TESTNET_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+const MAINNET_COOLDOWN_MS = 21 * 60 * 1000;
+const TESTNET_COOLDOWN_MS = 10 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category');
   const posterId = searchParams.get('poster_id');
   const includeHidden = searchParams.get('includeHidden') === 'true';
-  const network = searchParams.get('network'); // 'testnet', 'mainnet', or null for all
+  const network = searchParams.get('network');
   
   let query = supabase
     .from('gigs')
@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
   if (status) query = query.eq('status', status);
   if (category) query = query.eq('category', category);
   
-  // Filter by network
   if (network === 'testnet') {
     query = query.eq('is_testnet', true);
   } else if (network === 'mainnet') {
@@ -61,30 +60,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   // ===========================================
-  // AUTHENTICATION REQUIRED
+  // AUTHENTICATION - Using centralized auth (supports hashed + legacy keys)
   // ===========================================
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token',
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token',
       example: 'curl -H "x-api-key: YOUR_KEY" -X POST https://claw-jobs.com/api/gigs'
     }, { status: 401 });
   }
 
-  // Verify API key and get user
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id, gigs_completed, reputation_score')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
-
-  // Use authenticated user's ID (ignore any poster_id in body)
+  const user = auth.user;
   const poster_id = user.id;
 
   let body: CreateGigRequest;
@@ -93,15 +81,15 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+  
   const { title, description, category, budget_sats, deadline, required_capabilities } = body;
-  // SECURITY: is_testnet determined by SERVER environment, never from client
   const is_testnet = isTestnetMode();
   
   if (!title || !description || !category || !budget_sats) {
     return NextResponse.json({ error: 'Missing required fields: title, description, category, budget_sats' }, { status: 400 });
   }
 
-  // Check rate limit: get user's last gig
+  // Check rate limit
   const { data: lastGig } = await supabaseAdmin
     .from('gigs')
     .select('created_at')
@@ -114,8 +102,6 @@ export async function POST(request: NextRequest) {
     const lastPostTime = new Date(lastGig.created_at).getTime();
     const now = Date.now();
     const timeSinceLastPost = now - lastPostTime;
-    
-    // Use shorter cooldown for testnet gigs
     const cooldownMs = is_testnet ? TESTNET_COOLDOWN_MS : MAINNET_COOLDOWN_MS;
     const cooldownMinutes = is_testnet ? 10 : 21;
     
@@ -127,22 +113,17 @@ export async function POST(request: NextRequest) {
         error: 'Rate limit',
         message: `You can only post once every ${cooldownMinutes} minutes. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
         waitMs: waitTimeMs,
-        waitMinutes: waitMinutes,
-        hint: is_testnet ? 'Testnet has 10 min cooldown' : 'Mainnet has 21 min cooldown'
+        waitMinutes: waitMinutes
       }, { status: 429 });
     }
   }
   
-  // Sanitize inputs
-  const cleanTitle = sanitizeInput(title as string);
-  const cleanDescription = sanitizeInput(description as string);
-  
-  // Use user stats from auth lookup
+  const cleanTitle = sanitizeInput(title);
+  const cleanDescription = sanitizeInput(description);
   const userGigsCompleted = user.gigs_completed || 0;
   const userReputation = user.reputation_score || 0;
   
-  // Run moderation check
-  const modResult = moderateGig(cleanTitle, cleanDescription, category as string, userGigsCompleted, userReputation);
+  const modResult = moderateGig(cleanTitle, cleanDescription, category, userGigsCompleted, userReputation);
   
   if (modResult.status === MODERATION_STATUS.REJECTED) {
     return NextResponse.json({ 
@@ -152,7 +133,6 @@ export async function POST(request: NextRequest) {
     }, { status: 400 });
   }
   
-  // Create gig
   const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .insert({
@@ -163,7 +143,7 @@ export async function POST(request: NextRequest) {
       budget_sats,
       deadline,
       required_capabilities: required_capabilities || [],
-      is_testnet: is_testnet || false,
+      is_testnet,
       status: modResult.status === MODERATION_STATUS.APPROVED ? 'open' : 'pending_review',
       moderation_status: modResult.status,
       moderation_notes: modResult.reason || null,
@@ -176,8 +156,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: gigError.message }, { status: 500 });
   }
   
-  // Generate escrow invoice for approved mainnet gigs only
-  // Testnet gigs don't need real escrow - payments are simulated
   if (!modResult.requiresReview && !is_testnet) {
     try {
       const invoice = await createInvoice(budget_sats, `Escrow for gig: ${cleanTitle}`);
@@ -195,12 +173,12 @@ export async function POST(request: NextRequest) {
         escrow_invoice: invoice.invoice,
         escrow_payment_hash: invoice.payment_hash
       });
-    } catch (error: any) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
   }
   
-  // For testnet gigs, auto-approve escrow (simulated)
   if (is_testnet && !modResult.requiresReview) {
     await supabaseAdmin
       .from('gigs')
