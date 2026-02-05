@@ -124,8 +124,53 @@ export function getApiKeyFromRequest(request: Request): string | null {
 
 /**
  * Quick authentication helper that combines extraction and auth
+ * Supports:
+ * - x-api-key header (API clients/agents)
+ * - Bearer token (API clients)
+ * - x-user-id header (browser sessions - for frontend AJAX calls)
  */
 export async function authenticateRequest(request: Request): Promise<AuthResult> {
+  // First try API key auth (for external API clients)
   const apiKey = getApiKeyFromRequest(request);
-  return authenticateApiKey(apiKey);
+  if (apiKey) {
+    return authenticateApiKey(apiKey);
+  }
+  
+  // Fallback: x-user-id header for browser sessions
+  // This is used by frontend pages that already authenticated via Supabase Auth
+  const userId = request.headers.get('x-user-id');
+  if (userId) {
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, type, role, gigs_completed, reputation_score')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !user) {
+      return {
+        success: false,
+        error: 'User not found',
+        hint: 'Invalid x-user-id'
+      };
+    }
+    
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        type: user.type,
+        role: user.role,
+        gigs_completed: user.gigs_completed,
+        reputation_score: user.reputation_score
+      }
+    };
+  }
+  
+  return {
+    success: false,
+    error: 'Authentication required',
+    hint: 'Provide x-api-key header, Bearer token, or x-user-id'
+  };
 }
