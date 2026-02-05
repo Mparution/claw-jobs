@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     moderation_status: string;
     moderation_notes: string | null;
     moderated_at: string;
-    moderated_by: string;
+    
     flagged_keywords: string[] | null;
     status?: string;
     escrow_invoice?: string;
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
     moderation_status: result.status,
     moderation_notes: result.reason || null,
     moderated_at: new Date().toISOString(),
-    moderated_by: 'astro',
+    
     flagged_keywords: result.flaggedIssues.length > 0 ? result.flaggedIssues : null
   };
 
