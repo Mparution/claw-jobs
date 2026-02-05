@@ -183,3 +183,46 @@ export function sanitizeInput(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
 }
+
+// ===========================================
+// CONTENT MODERATION (for user-submitted text)
+// ===========================================
+
+export interface ContentModerationResult {
+  approved: boolean;
+  reason?: string;
+}
+
+/**
+ * Check user-submitted content (names, bios, etc.) for prohibited content
+ */
+export async function checkContentModeration(text: string): Promise<ContentModerationResult> {
+  if (!text || text.trim().length === 0) {
+    return { approved: true };
+  }
+
+  // Check for prohibited content
+  const violations = checkProhibitedContent(text);
+  if (violations.length > 0) {
+    return { 
+      approved: false, 
+      reason: `Contains prohibited content: ${violations.join(', ')}` 
+    };
+  }
+
+  // Check for spam patterns
+  const lowerText = text.toLowerCase();
+  const spamPatterns = [
+    /(.)\1{5,}/,  // Repeated characters (aaaaaaaa)
+    /\b(viagra|casino|lottery|prize|winner|click here)\b/i,
+    /(https?:\/\/[^\s]+){3,}/,  // Multiple URLs
+  ];
+
+  for (const pattern of spamPatterns) {
+    if (pattern.test(lowerText)) {
+      return { approved: false, reason: 'Content appears to be spam' };
+    }
+  }
+
+  return { approved: true };
+}

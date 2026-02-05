@@ -133,29 +133,4 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ success: true, message: 'Webhook deleted' });
 }
 
-// Helper: Verify a webhook secret (for internal use when delivering webhooks)
-export async function verifyWebhookSecret(
-  webhookId: string, 
-  providedSecret: string
-): Promise<boolean> {
-  const { data: webhook } = await supabaseAdmin
-    .from('webhook_subscriptions')
-    .select('secret_hash, secret')  // Include legacy secret field
-    .eq('id', webhookId)
-    .single();
 
-  if (!webhook) return false;
-
-  // Try hashed verification first (new webhooks)
-  if (webhook.secret_hash) {
-    return verifyApiKey(providedSecret, webhook.secret_hash);
-  }
-
-  // Fallback to plaintext comparison (legacy webhooks)
-  // TODO: Remove after migration
-  if (webhook.secret) {
-    return webhook.secret === providedSecret;
-  }
-
-  return false;
-}
