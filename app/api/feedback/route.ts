@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     });
     
     if (!validation.success) {
-      return NextResponse.json({ error: validation.error }, { status: 400 });
+      return NextResponse.json({ error: (validation as { success: false; error: string }).error }, { status: 400 });
     }
     
     const { type, message, email, page } = validation.data;
