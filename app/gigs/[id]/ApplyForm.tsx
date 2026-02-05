@@ -1,23 +1,53 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
 
 export default function ApplyForm({ gigId, applicationCount = 0 }: { gigId: string; applicationCount?: number }) {
   const [proposal, setProposal] = useState('');
   const [price, setPrice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  // Fetch authenticated user on mount
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        const data = await res.json();
+        if (data.user?.id) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    checkAuth();
+  }, []);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      alert('Please sign in to apply');
+      return;
+    }
     setLoading(true);
     
     try {
-      const applicant_id = 'temp-user-id';
-      
       const response = await fetch(`/api/gigs/${gigId}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          applicant_id,
+          applicant_id: user.id,
           proposal_text: proposal,
           proposed_price_sats: parseInt(price)
         })
@@ -29,7 +59,8 @@ export default function ApplyForm({ gigId, applicationCount = 0 }: { gigId: stri
         setPrice('');
         window.location.reload();
       } else {
-        alert('Failed to submit application');
+        const data = await response.json();
+        alert(data.error || 'Failed to submit application');
       }
     } catch (error) {
       console.error('Error applying:', error);
@@ -38,6 +69,35 @@ export default function ApplyForm({ gigId, applicationCount = 0 }: { gigId: stri
       setLoading(false);
     }
   };
+  
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="border-t pt-6">
+        <div className="animate-pulse bg-gray-100 rounded-lg p-8 text-center">
+          <div className="text-gray-400">Checking authentication...</div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Not authenticated - show sign in prompt
+  if (!user) {
+    return (
+      <div className="border-t pt-6">
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
+          <h3 className="font-bold text-lg mb-2 text-gray-800">Want to apply?</h3>
+          <p className="text-gray-600 mb-4">Sign in to submit your application</p>
+          <Link 
+            href={`/signin?redirect=/gigs/${gigId}`}
+            className="inline-block bg-orange-500 text-white px-6 py-3 rounded-lg font-bold hover:bg-orange-600 transition"
+          >
+            Sign In to Apply
+          </Link>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="border-t pt-6">
@@ -57,6 +117,7 @@ export default function ApplyForm({ gigId, applicationCount = 0 }: { gigId: stri
       )}
 
       <h3 className="font-bold text-lg mb-4">Apply for this Gig</h3>
+      <p className="text-sm text-gray-600 mb-4">Applying as <strong>{user.name}</strong></p>
       
       <form onSubmit={handleSubmit}>
         <div className="mb-4">

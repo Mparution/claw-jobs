@@ -51,7 +51,7 @@ export default async function GigDetailPage({ params }: { params: { id: string }
                 <span className="text-sm text-gray-500">{timeAgo(gig.created_at)}</span>
               </div>
               {/* Report Button - client component will handle auth */}
-              <ReportButton gigId={gig.id} reporterId="" />
+              <ReportButton gigId={gig.id} />
             </div>
             
             <h1 className="text-4xl font-bold mb-4">{gig.title}</h1>

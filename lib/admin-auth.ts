@@ -4,6 +4,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey, getApiKeyFromRequest } from './auth';
+import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from './supabase';
+
+// Admin emails - in production, use a database role column
+const ADMIN_EMAILS = [
+  'martin.pauroud@outlook.com', // Wolfy
+];
 
 export interface AdminUser {
   id: string;
@@ -25,19 +32,14 @@ export class AuthError extends Error {
 
 /**
  * Constant-time string comparison to prevent timing attacks
- * Uses crypto.subtle.timingSafeEqual via a digest comparison
- * This avoids early-exit on length mismatch
  */
 async function timingSafeEqual(a: string, b: string): Promise<boolean> {
   const encoder = new TextEncoder();
-  
-  // Hash both strings - this normalizes length and provides constant-time comparison
   const [hashA, hashB] = await Promise.all([
     crypto.subtle.digest('SHA-256', encoder.encode(a)),
     crypto.subtle.digest('SHA-256', encoder.encode(b))
   ]);
   
-  // Compare the hashes byte-by-byte in constant time
   const viewA = new Uint8Array(hashA);
   const viewB = new Uint8Array(hashB);
   
@@ -50,6 +52,48 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
 }
 
 /**
+ * Try to authenticate via Supabase session cookie
+ */
+async function authenticateFromCookie(request: NextRequest): Promise<AdminUser | null> {
+  const accessToken = request.cookies.get('sb-access-token')?.value;
+  if (!accessToken) return null;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } }
+    });
+
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(accessToken);
+    if (error || !authUser?.email) return null;
+
+    // Check if email is in admin list
+    if (!ADMIN_EMAILS.includes(authUser.email)) return null;
+
+    // Get full user profile
+    const { data: user } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email')
+      .eq('email', authUser.email)
+      .single();
+
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: 'admin'
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Verify the request is from an authenticated admin.
  * Returns the admin user if valid.
  * Throws AuthError with NextResponse if not authorized.
@@ -57,13 +101,12 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
  * Supports:
  * - x-admin-secret header (system admin)
  * - x-api-key / Bearer token (user with admin role)
- * - Both hashed and legacy plaintext API keys
+ * - Supabase session cookie (browser admin)
  */
 export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
-  // SECURITY: Use timing-safe comparison to prevent timing attacks
   const envAdminSecret = process.env.ADMIN_SECRET;
   if (adminSecret && envAdminSecret && await timingSafeEqual(adminSecret, envAdminSecret)) {
     return {
@@ -74,7 +117,13 @@ export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
     };
   }
   
-  // Use centralized auth (supports hashed + legacy keys)
+  // Check for Supabase session cookie (browser-based admin)
+  const cookieAdmin = await authenticateFromCookie(request);
+  if (cookieAdmin) {
+    return cookieAdmin;
+  }
+  
+  // Use centralized auth (supports hashed + legacy API keys)
   const apiKey = getApiKeyFromRequest(request);
   const auth = await authenticateApiKey(apiKey);
   

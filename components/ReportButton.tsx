@@ -5,7 +5,6 @@ import { REPORT_REASONS, type ReportReason } from '@/lib/constants';
 
 interface ReportButtonProps {
   gigId: string;
-  reporterId: string;
 }
 
 const REASON_LABELS: Record<ReportReason, string> = {
@@ -19,7 +18,7 @@ const REASON_LABELS: Record<ReportReason, string> = {
   other: '❓ Other'
 };
 
-export function ReportButton({ gigId, reporterId }: ReportButtonProps) {
+export function ReportButton({ gigId }: ReportButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | ''>('');
   const [details, setDetails] = useState('');
@@ -32,10 +31,12 @@ export function ReportButton({ gigId, reporterId }: ReportButtonProps) {
 
     setIsSubmitting(true);
     try {
+      // No need to send reporter_id - API uses server-side auth
       const res = await fetch(`/api/gigs/${gigId}/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reporter_id: reporterId, reason, details })
+        credentials: 'include',
+        body: JSON.stringify({ reason, details })
       });
       
       const data = await res.json();
@@ -49,7 +50,7 @@ export function ReportButton({ gigId, reporterId }: ReportButtonProps) {
       } else {
         setResult({ success: false, message: data.error });
       }
-    } catch (err) {
+    } catch {
       setResult({ success: false, message: 'Failed to submit report' });
     } finally {
       setIsSubmitting(false);
