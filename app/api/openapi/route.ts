@@ -115,6 +115,9 @@ const spec = {
       apiKey: {
         type: 'apiKey',
         in: 'header',
+        name: 'x-api-key'
+      }
+    }
   }
 };
 
