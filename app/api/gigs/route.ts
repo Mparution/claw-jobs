@@ -104,9 +104,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (lastGig) {
-    const lastPostTime = new Date(lastGig.created_at).getTime();
-    const now = Date.now();
-    const timeSinceLastPost = now - lastPostTime;
+    const timeSinceLastPost = Date.now() - new Date(lastGig.created_at).getTime();
     const cooldownMs = is_testnet ? TESTNET_COOLDOWN_MS : MAINNET_COOLDOWN_MS;
     const cooldownMinutes = is_testnet ? 10 : 21;
     
@@ -128,16 +126,18 @@ export async function POST(request: NextRequest) {
   const userGigsCompleted = user.gigs_completed || 0;
   const userReputation = user.reputation_score || 0;
   
-  const modResult = moderateGig(cleanTitle, cleanDescription, category, userGigsCompleted, userReputation);
+  // Quick keyword check - reject obviously prohibited content immediately
+  const quickCheck = moderateGig(cleanTitle, cleanDescription, category, userGigsCompleted, userReputation);
   
-  if (modResult.status === MODERATION_STATUS.REJECTED) {
+  if (quickCheck.prohibitedKeywords.length > 0) {
     return NextResponse.json({ 
       error: 'Gig rejected by moderation',
-      reason: modResult.reason,
-      prohibitedKeywords: modResult.prohibitedKeywords
+      reason: quickCheck.reason,
+      prohibitedKeywords: quickCheck.prohibitedKeywords
     }, { status: 400 });
   }
   
+  // All gigs start as pending - webhook will do full moderation
   const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .insert({
@@ -149,10 +149,10 @@ export async function POST(request: NextRequest) {
       deadline,
       required_capabilities: required_capabilities || [],
       is_testnet,
-      status: modResult.status === MODERATION_STATUS.APPROVED ? 'open' : 'pending_review',
-      moderation_status: modResult.status,
-      moderation_notes: modResult.reason || null,
-      flagged_keywords: modResult.flaggedKeywords.length > 0 ? modResult.flaggedKeywords : null
+      status: 'pending_review',
+      moderation_status: MODERATION_STATUS.PENDING,
+      moderation_notes: 'Awaiting automatic review',
+      flagged_keywords: quickCheck.flaggedKeywords.length > 0 ? quickCheck.flaggedKeywords : null
     })
     .select()
     .single();
@@ -161,49 +161,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: gigError.message }, { status: 500 });
   }
   
-  if (!modResult.requiresReview && !is_testnet) {
-    try {
-      const invoice = await createInvoice(budget_sats, `Escrow for gig: ${cleanTitle}`);
-      
-      await supabaseAdmin
-        .from('gigs')
-        .update({
-          escrow_invoice: invoice.invoice,
-          escrow_payment_hash: invoice.payment_hash
-        })
-        .eq('id', gig.id);
-      
-      return NextResponse.json({
-        ...gig,
-        escrow_invoice: invoice.invoice,
-        escrow_payment_hash: invoice.payment_hash
-      });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
-    }
-  }
-  
-  if (is_testnet && !modResult.requiresReview) {
-    await supabaseAdmin
-      .from('gigs')
-      .update({
-        escrow_paid: true,
-        escrow_invoice: 'testnet_simulated',
-        escrow_payment_hash: `testnet_${gig.id}`
-      })
-      .eq('id', gig.id);
-    
-    return NextResponse.json({
-      ...gig,
-      escrow_paid: true,
-      is_testnet: true,
-      message: 'Testnet gig created! No real payment required.'
-    });
-  }
+  // Note: Escrow invoice creation will happen after moderation approves the gig
+  // The webhook will handle invoice creation for approved mainnet gigs
   
   return NextResponse.json({
     ...gig,
-    message: modResult.requiresReview ? 'Gig submitted for review.' : 'Gig created.'
+    message: 'Gig submitted for review. You will be notified when it is approved.'
   });
 }
