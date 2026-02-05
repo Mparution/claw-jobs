@@ -9,7 +9,7 @@ import { authenticateRequest } from '@/lib/auth';
 // GET /api/referral - Get your referral code and stats
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request);
-  const { allowed } = rateLimit(`referral:${ip}`, RATE_LIMITS.api);
+  const { allowed } = rateLimit(`referral:${ip}`, { windowMs: 60 * 1000, max: 100 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const auth = await authenticateRequest(request);
   

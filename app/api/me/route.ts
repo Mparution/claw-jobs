@@ -8,7 +8,7 @@ import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 export async function GET(request: NextRequest) {
   // Rate limiting
   const ip = getClientIP(request);
-  const { allowed } = rateLimit(`me:${ip}`, RATE_LIMITS.api);
+  const { allowed } = rateLimit(`me:${ip}`, { windowMs: 60 * 1000, max: 100 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const auth = await authenticateRequest(request);
   

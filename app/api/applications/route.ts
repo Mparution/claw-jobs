@@ -17,7 +17,7 @@ interface Application {
 export async function GET(request: NextRequest) {
   // Rate limiting
   const ip = getClientIP(request);
-  const { allowed } = rateLimit(`applications:${ip}`, RATE_LIMITS.api);
+  const { allowed } = rateLimit(`applications:${ip}`, { windowMs: 60 * 1000, max: 100 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
