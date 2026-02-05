@@ -2,6 +2,7 @@ export const runtime = 'edge';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAdmin, AuthError } from '@/lib/admin-auth';
 
 // Cloudflare Analytics API response types
 interface CloudflareDayStats {
@@ -11,9 +12,16 @@ interface CloudflareDayStats {
 }
 
 export async function GET(request: NextRequest) {
+  // SECURITY FIX: Require admin auth for analytics data
+  const adminAuth = await verifyAdmin(request);
+  if (adminAuth instanceof AuthError) {
+    return adminAuth.response();
+  }
+
   const ip = getClientIP(request);
   const { allowed } = rateLimit(`analytics:${ip}`, { windowMs: 60 * 1000, max: 30 });
   if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  
   const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
   const ZONE_ID = '95e9346ecc4ce1f83f3176b597a87c9a';
   
@@ -43,28 +51,40 @@ export async function GET(request: NextRequest) {
             }
           }
         }`
-      }),
+      })
     });
-
-    const data = await response.json();
-    const stats: CloudflareDayStats[] = data?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
-
+    
+    const result = await response.json();
+    
+    if (!result.data?.viewer?.zones?.[0]) {
+      return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
+    }
+    
+    const stats = result.data.viewer.zones[0].httpRequests1dGroups as CloudflareDayStats[];
+    
+    // Calculate totals
+    const totals = stats.reduce((acc, day) => ({
+      requests: acc.requests + day.sum.requests,
+      pageViews: acc.pageViews + day.sum.pageViews,
+      bytes: acc.bytes + day.sum.bytes,
+      uniques: acc.uniques + day.uniq.uniques
+    }), { requests: 0, pageViews: 0, bytes: 0, uniques: 0 });
+    
     return NextResponse.json({
-      period: 'last_7_days',
-      daily: stats.map((day: CloudflareDayStats) => ({
-        date: day.dimensions.date,
-        pageViews: day.sum.pageViews,
-        requests: day.sum.requests,
-        uniqueVisitors: day.uniq.uniques,
-        bandwidth: Math.round(day.sum.bytes / 1024 / 1024) + ' MB'
-      })),
+      period: { from: weekAgo, to: today },
       totals: {
-        pageViews: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.sum.pageViews, 0),
-        requests: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.sum.requests, 0),
-        uniqueVisitors: stats.reduce((acc: number, d: CloudflareDayStats) => acc + d.uniq.uniques, 0),
-      }
+        ...totals,
+        bytesFormatted: `${(totals.bytes / 1024 / 1024).toFixed(2)} MB`
+      },
+      daily: stats.map(day => ({
+        date: day.dimensions.date,
+        requests: day.sum.requests,
+        pageViews: day.sum.pageViews,
+        uniques: day.uniq.uniques
+      }))
     });
-  } catch {
+  } catch (error) {
+    console.error('Analytics error:', error);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

@@ -6,17 +6,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { createInvoice, isTestnetMode } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
-import { authenticateRequest } from '@/lib/auth';
+import { authenticateRequest, requireAuth } from '@/lib/auth';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
-
-interface CreateGigRequest {
-  title: string;
-  description: string;
-  category: string;
-  budget_sats: number;
-  deadline?: string;
-  required_capabilities?: string[];
-}
+import { createGigSchema, validate } from '@/lib/validation';
 
 // Rate limits: 21 min for mainnet, 10 min for testnet
 const MAINNET_COOLDOWN_MS = 21 * 60 * 1000;
@@ -51,12 +43,10 @@ export async function GET(request: NextRequest) {
   
   if (posterId) {
     query = query.eq('poster_id', posterId);
-    // Only show non-approved gigs if authenticated poster is viewing their own
     if (!canIncludeHidden) {
       query = query.eq('moderation_status', MODERATION_STATUS.APPROVED);
     }
   } else {
-    // Public listing - always filter to approved only
     query = query.eq('moderation_status', MODERATION_STATUS.APPROVED);
   }
   
@@ -80,35 +70,29 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // ===========================================
-  // AUTHENTICATION - Using centralized auth (supports hashed + legacy keys)
-  // ===========================================
+  // Authentication
   const auth = await authenticateRequest(request);
-  
-  if (!auth.success || !auth.user) {
-    return NextResponse.json({
-      error: auth.error || 'Authentication required',
-      hint: auth.hint || 'Provide x-api-key header or Bearer token',
-      example: 'curl -H "x-api-key: YOUR_KEY" -X POST https://claw-jobs.com/api/gigs'
-    }, { status: 401 });
-  }
+  const authError = requireAuth(auth);
+  if (authError) return authError;
 
-  const user = auth.user;
+  const user = auth.user!;
   const poster_id = user.id;
 
-  let body: CreateGigRequest;
+  // Parse and validate request body with Zod
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
   
-  const { title, description, category, budget_sats, deadline, required_capabilities } = body;
-  const is_testnet = isTestnetMode();
-  
-  if (!title || !description || !category || !budget_sats) {
-    return NextResponse.json({ error: 'Missing required fields: title, description, category, budget_sats' }, { status: 400 });
+  const validation = validate(createGigSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
+  
+  const { title, description, category, budget_sats, deadline, required_capabilities } = validation.data;
+  const is_testnet = isTestnetMode();
 
   // Check rate limit
   const { data: lastGig } = await supabaseAdmin

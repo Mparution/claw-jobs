@@ -3,7 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
-import { authenticateRequest } from '@/lib/auth';
+import { authenticateRequest, requireAuth } from '@/lib/auth';
 
 // Type for the joined query result
 interface ApplicationQueryResult {

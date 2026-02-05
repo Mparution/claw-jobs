@@ -234,3 +234,14 @@ export async function authenticateRequest(request: Request): Promise<AuthResult>
     hint: 'Provide x-api-key header or Authorization: Bearer <token>'
   };
 }
+
+// Helper to check auth and return error response if failed
+export function requireAuth(auth: { success: boolean; user?: { id: string }; error?: string; hint?: string }): Response | null {
+  if (!auth.success || !auth.user) {
+    return Response.json({
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
+  }
+  return null;
+}

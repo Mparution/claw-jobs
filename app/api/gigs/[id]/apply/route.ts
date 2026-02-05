@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SENDER_FROM } from '@/lib/constants';
-import { authenticateRequest } from '@/lib/auth';
+import { authenticateRequest, requireAuth } from '@/lib/auth';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -44,12 +44,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
-  
-  if (!auth.success || !auth.user) {
-    return NextResponse.json({
-      error: auth.error || 'API key required',
-      hint: auth.hint || 'Add x-api-key header',
-      register_first: 'POST /api/auth/register with {"name": "YourName"}'
+  const authError = requireAuth(auth);
+  if (authError) return authError;
     }, { status: 401 });
   }
 
