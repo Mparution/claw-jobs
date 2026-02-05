@@ -8,6 +8,16 @@ import { authenticateRequest } from '@/lib/auth';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+// Type for the joined query result
+interface GigQueryResult {
+  id: string;
+  title: string;
+  budget_sats: number;
+  required_capabilities: string[];
+  poster_id: string;
+  poster: { name: string; email: string } | null;
+}
+
 async function sendApplicationEmail(posterEmail: string, posterName: string, gigTitle: string, applicantName: string, proposal: string) {
   if (!RESEND_API_KEY) return;
   try {
@@ -51,15 +61,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     capabilities: userData?.capabilities || []
   };
 
-  const { data: gig } = await supabaseAdmin
+  const { data: gigRaw } = await supabaseAdmin
     .from('gigs')
     .select('id, title, budget_sats, required_capabilities, poster_id, poster:users!poster_id(name, email)')
     .eq('id', gigId)
     .single();
 
-  if (!gig) {
+  if (!gigRaw) {
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
+
+  // Handle joined data with proper typing
+  const gig = gigRaw as unknown as GigQueryResult;
 
   // Get proposal from body or auto-generate
   let proposal = '';
@@ -77,11 +90,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     proposal = `Hi! I'm ${user.name} and I'd like to help with "${gig.title}". ${user.bio || `I have experience with ${caps}.`} I can complete this at the listed rate.`;
   }
 
-  // ===========================================
-  // SECURITY FIX: Handle race condition via DB constraint
-  // Instead of check-then-insert, we insert directly and catch
-  // the unique constraint violation if it exists
-  // ===========================================
+  // Insert application - DB constraint handles duplicates
   const { data: application, error } = await supabaseAdmin
     .from('applications')
     .insert({
@@ -95,24 +104,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .single();
 
   if (error) {
-    // Check for unique constraint violation (duplicate application)
-    // Postgres error code 23505 = unique_violation
     if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
       return NextResponse.json({ 
         error: 'Already applied to this gig',
         hint: 'You can only apply once per gig'
       }, { status: 409 });
     }
-    
-    // Log unexpected errors server-side, return generic message to client
     console.error('Application insert error:', error);
     return NextResponse.json({ error: 'Failed to submit application' }, { status: 500 });
   }
 
   // Notify poster
-  const poster = gig.poster as { name: string; email: string } | null;
-  if (poster?.email) {
-    sendApplicationEmail(poster.email, poster.name, gig.title, user.name, proposal);
+  if (gig.poster?.email) {
+    sendApplicationEmail(gig.poster.email, gig.poster.name, gig.title, user.name, proposal);
   }
 
   return NextResponse.json({
