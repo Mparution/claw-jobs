@@ -126,3 +126,30 @@ MIT
 <!-- Build trigger: 20260202042246 -->
 
 <!-- Build: 2026-02-03 07:01 UTC -->
+
+---
+
+## 🔒 Security
+
+### Production Deployment
+
+This app uses Edge runtime on Cloudflare Pages. **Important security configurations required:**
+
+1. **Cloudflare WAF Rate Limiting** - In-app rate limiting is per-isolate only. You MUST configure Cloudflare WAF rules for production. See [CLOUDFLARE-SECURITY.md](./CLOUDFLARE-SECURITY.md).
+
+2. **Environment Variables** - Ensure all secrets are set in Cloudflare Pages:
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `NWC_URL` (Lightning wallet)
+   - `ADMIN_SECRET`
+   - `SENTRY_DSN` (optional, for error tracking)
+
+3. **Sentry Error Tracking** - Set `SENTRY_DSN` environment variable to enable error tracking.
+
+### Security Headers
+
+The middleware automatically adds:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+

@@ -2,13 +2,41 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit, getClientIP, RATE_LIMITS } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(request: NextRequest) {
-  const { email, password, name, type } = await request.json();
+  // ===========================================
+  // SECURITY FIX: Add rate limiting to signup
+  // Prevents automated mass account creation
+  // ===========================================
+  const clientIP = getClientIP(request);
+  const rateLimitResult = rateLimit(`signup:${clientIP}`, RATE_LIMITS.register);
+  
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json({
+      error: 'Too many signup attempts',
+      message: 'Please wait before creating another account',
+      retryAfterMs: rateLimitResult.resetIn
+    }, { 
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil(rateLimitResult.resetIn / 1000))
+      }
+    });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  
+  const { email, password, name, type } = body;
 
   if (!email || !password || !name) {
     return NextResponse.json({ error: 'Email, password, and name required' }, { status: 400 });
