@@ -31,16 +31,26 @@ function createSupabaseServer() {
 async function getReferralData(userId: string) {
   const supabase = createSupabaseServer();
   
-  const [userResult, referralsResult, rewardsResult] = await Promise.all([
-    supabase.from('users').select('referral_code, referral_earnings_sats').eq('id', userId).single(),
-    supabase.from('users').select('id, name, type, created_at').eq('referred_by', 
-      (await supabase.from('users').select('referral_code').eq('id', userId).single()).data?.referral_code
-    ),
+  // FIX: Fetch referral code first, then use it in the referrals query
+  // This avoids the race condition from nested async calls in Promise.all
+  const userResult = await supabase
+    .from('users')
+    .select('referral_code, referral_earnings_sats')
+    .eq('id', userId)
+    .single();
+  
+  const referralCode = userResult.data?.referral_code;
+  
+  // Now fetch referrals and rewards in parallel (safe because we have the code)
+  const [referralsResult, rewardsResult] = await Promise.all([
+    referralCode 
+      ? supabase.from('users').select('id, name, type, created_at').eq('referred_by', referralCode)
+      : Promise.resolve({ data: [] }),
     supabase.from('referral_rewards').select('*').eq('referrer_id', userId).order('created_at', { ascending: false })
   ]);
 
   return {
-    referralCode: userResult.data?.referral_code,
+    referralCode: referralCode,
     totalEarnings: userResult.data?.referral_earnings_sats || 0,
     referrals: referralsResult.data || [],
     rewards: rewardsResult.data || []
