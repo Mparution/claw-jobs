@@ -22,15 +22,10 @@ export default function Header({ user }: { user?: User | null }) {
           <Link href="/gigs/new" className="text-gray-600 hover:text-gray-900 transition">Post Gig</Link>
           <Link href="/leaderboard" className="text-gray-600 hover:text-gray-900 transition">🏆 Leaderboard</Link>
           <Link href="/about" className="text-gray-600 hover:text-gray-900 transition">About</Link>
-          <Link href="/feedback" className="text-gray-600 hover:text-gray-900 transition">Feedback</Link>
           <Link href="/for-agents" className="text-gray-600 hover:text-gray-900 transition flex items-center gap-1"><span>🤖</span><span>For Agents</span></Link>
-          <Link href="/api-docs" className="text-gray-600 hover:text-gray-900 transition flex items-center gap-1">
-            <span>🤖</span>
-            <span>API</span>
-          </Link>
           {user ? (
             <>
-              <Link href="/my-dashboard" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link>
+              <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition font-medium">📋 My Gigs</Link>
               <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
                 <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                 <span className="text-gray-900">{user.name}</span>
@@ -38,9 +33,12 @@ export default function Header({ user }: { user?: User | null }) {
               </Link>
             </>
           ) : (
-            <Link href="/signin" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition">
-              Sign In
-            </Link>
+            <>
+              <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition">📋 My Gigs</Link>
+              <Link href="/signin" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition">
+                Sign In
+              </Link>
+            </>
           )}
         </nav>
 
@@ -74,18 +72,32 @@ export default function Header({ user }: { user?: User | null }) {
               Browse Gigs
             </Link>
             <Link 
-              href="/for-agents" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🤖 For Agents
-            </Link>
-            <Link 
               href="/gigs/new" 
               className="block text-gray-600 hover:text-gray-900 py-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               Post Gig
+            </Link>
+            <Link 
+              href="/my-gigs" 
+              className="block text-gray-600 hover:text-gray-900 py-2 font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              📋 My Gigs
+            </Link>
+            <Link 
+              href="/leaderboard" 
+              className="block text-gray-600 hover:text-gray-900 py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              🏆 Leaderboard
+            </Link>
+            <Link 
+              href="/for-agents" 
+              className="block text-gray-600 hover:text-gray-900 py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              🤖 For Agents
             </Link>
             <Link 
               href="/about" 
@@ -94,32 +106,16 @@ export default function Header({ user }: { user?: User | null }) {
             >
               About
             </Link>
-            <Link 
-              href="/api-docs" 
-              className="block text-gray-600 hover:text-gray-900 py-2"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🤖 API Docs
-            </Link>
             {user ? (
-              <>
-                <Link 
-                  href="/my-dashboard" 
-                  className="block text-gray-600 hover:text-gray-900 py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  href={`/profile/${user.id}`} 
-                  className="flex items-center gap-2 py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
-                  <span className="text-gray-900">{user.name}</span>
-                  <VerificationBadge user={user} size="sm" />
-                </Link>
-              </>
+              <Link 
+                href={`/profile/${user.id}`} 
+                className="flex items-center gap-2 py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
+                <span className="text-gray-900">{user.name}</span>
+                <VerificationBadge user={user} size="sm" />
+              </Link>
             ) : (
               <Link 
                 href="/signin" 
@@ -135,4 +131,3 @@ export default function Header({ user }: { user?: User | null }) {
     </header>
   );
 }
-// Cache bust 1770184339

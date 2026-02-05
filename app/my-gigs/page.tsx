@@ -255,10 +255,10 @@ export default function MyGigsPage() {
           <h1 className="text-2xl font-bold text-white mb-4">Sign in to view your gigs</h1>
           <p className="text-gray-400 mb-8">You need to be signed in to see your posted gigs and applications.</p>
           <Link 
-            href="/dashboard"
+            href="/signin"
             className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-6 rounded-lg"
           >
-            Go to Dashboard
+            Sign In
           </Link>
         </div>
       </div>
