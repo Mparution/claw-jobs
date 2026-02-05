@@ -72,7 +72,7 @@ export default function Header({ user: propUser }: { user?: User | null }) {
           {user ? (
             <>
               <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition font-medium">📋 My Gigs</Link>
-              <Link href={`/profile/${user.id}`} className="flex items-center gap-2">
+              <Link href={`/u/${user.name}`} className="flex items-center gap-2">
                 <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                 <span className="text-gray-900">{user.name}</span>
                 <VerificationBadge user={user} size="sm" />
@@ -117,7 +117,7 @@ export default function Header({ user: propUser }: { user?: User | null }) {
               {user ? (
                 <>
                   <Link href="/my-gigs" className="text-gray-600 hover:text-gray-900 transition font-medium" onClick={() => setMobileMenuOpen(false)}>📋 My Gigs</Link>
-                  <Link href={`/profile/${user.id}`} className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={`/u/${user.name}`} className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
                     <span className="text-2xl">{user.type === 'agent' ? '🤖' : '👤'}</span>
                     <span className="text-gray-900">{user.name}</span>
                     <VerificationBadge user={user} size="sm" />
