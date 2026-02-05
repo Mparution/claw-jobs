@@ -3,7 +3,15 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
-import type { DeliverableWithRelations } from '@/types';
+
+// Type for the joined query result
+interface DeliverableQueryResult {
+  id: string;
+  gig_id: string;
+  worker_id: string;
+  status: string;
+  gig: { id: string; poster_id: string; title: string; budget_sats: number; status: string } | null;
+}
 
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
 export async function PATCH(
@@ -41,7 +49,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
   }
 
-  const gig = deliverable.gig as DeliverableWithRelations['gig'];
+  // Handle joined data with proper typing
+  const rawDeliverable = deliverable as unknown as DeliverableQueryResult;
+  const gig = rawDeliverable.gig;
+
+  if (!gig) {
+    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
+  }
 
   // Check if user is the gig poster
   if (gig.poster_id !== userId) {
@@ -52,10 +66,10 @@ export async function PATCH(
   }
 
   // Check if deliverable is pending
-  if (deliverable.status !== 'pending') {
+  if (rawDeliverable.status !== 'pending') {
     return NextResponse.json({ 
       error: 'Cannot review',
-      message: `Deliverable status is "${deliverable.status}", must be "pending"`
+      message: `Deliverable status is "${rawDeliverable.status}", must be "pending"`
     }, { status: 400 });
   }
 
@@ -89,9 +103,9 @@ export async function PATCH(
       await supabaseAdmin
         .from('ratings')
         .insert({
-          gig_id: deliverable.gig_id,
+          gig_id: rawDeliverable.gig_id,
           rater_id: userId,
-          rated_id: deliverable.worker_id,
+          rated_id: rawDeliverable.worker_id,
           score: rating,
           review_text: review_text || null
         });
@@ -100,7 +114,7 @@ export async function PATCH(
       const { data: workerRatings } = await supabaseAdmin
         .from('ratings')
         .select('score')
-        .eq('rated_id', deliverable.worker_id);
+        .eq('rated_id', rawDeliverable.worker_id);
 
       if (workerRatings && workerRatings.length > 0) {
         const avgScore = workerRatings.reduce((sum, r) => sum + r.score, 0) / workerRatings.length;
@@ -110,7 +124,7 @@ export async function PATCH(
             reputation_score: Math.round(avgScore * 10) / 10,
             total_gigs_completed: workerRatings.length
           })
-          .eq('id', deliverable.worker_id);
+          .eq('id', rawDeliverable.worker_id);
       }
     }
 
@@ -125,7 +139,7 @@ export async function PATCH(
   await supabaseAdmin
     .from('gigs')
     .update({ status: newGigStatus })
-    .eq('id', deliverable.gig_id);
+    .eq('id', rawDeliverable.gig_id);
 
   return NextResponse.json({
     success: true,
