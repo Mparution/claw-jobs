@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 // POST /api/gigs/[id]/deliverable - Submit a deliverable
 export async function POST(
@@ -10,31 +11,17 @@ export async function POST(
 ) {
   const { id: gigId } = await params;
   
-  // ===========================================
-  // SECURITY FIX: API key authentication required
-  // Removed x-user-id header fallback (was allowing impersonation)
-  // ===========================================
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
 
-  // Verify API key and get user
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
-
-  const userId = user.id;
+  const userId = auth.user.id;
 
   // Get the gig
   const { data: gig, error: gigError } = await supabase

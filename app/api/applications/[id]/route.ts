@@ -3,11 +3,11 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
+import { authenticateRequest } from '@/lib/auth';
 import type { ApplicationWithRelations } from '@/types';
 
 // Send notification email (fire and forget)
 async function sendHiredEmail(applicantEmail: string, applicantName: string, gigTitle: string, gigId: string) {
-  // Skip auto-generated agent emails
   if (applicantEmail.endsWith(`@${AGENT_EMAIL_DOMAIN}`)) return;
   
   try {
@@ -66,31 +66,17 @@ export async function PATCH(
 ) {
   const { id } = await params;
   
-  // ===========================================
-  // SECURITY FIX: API key authentication required
-  // Removed x-user-id header fallback (was allowing impersonation)
-  // ===========================================
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
 
-  // Verify API key and get user
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
-
-  const userId = user.id;
+  const userId = auth.user.id;
 
   // Get the application with gig info and applicant email
   const { data: application, error: appError } = await supabase
@@ -110,7 +96,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  // Check if the user is the gig poster
   const gig = application.gig as ApplicationWithRelations['gig'];
   const applicant = application.applicant as ApplicationWithRelations['applicant'];
   
@@ -121,7 +106,6 @@ export async function PATCH(
     }, { status: 403 });
   }
 
-  // Get the new status from request body
   const body = await request.json();
   const { status } = body;
 
@@ -132,7 +116,6 @@ export async function PATCH(
     }, { status: 400 });
   }
 
-  // If accepting, check if gig is still open
   if (status === 'accepted' && gig.status !== 'open') {
     return NextResponse.json({
       error: 'Cannot accept application',
@@ -140,7 +123,6 @@ export async function PATCH(
     }, { status: 400 });
   }
 
-  // Update the application status
   const { error: updateError } = await supabaseAdmin
     .from('applications')
     .update({ status })
@@ -150,7 +132,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update application' }, { status: 500 });
   }
 
-  // If accepted, update gig status and set selected worker
   if (status === 'accepted') {
     await supabaseAdmin
       .from('gigs')
@@ -160,7 +141,6 @@ export async function PATCH(
       })
       .eq('id', application.gig_id);
       
-    // Reject other pending applications for this gig
     await supabaseAdmin
       .from('applications')
       .update({ status: 'rejected' })
@@ -168,7 +148,6 @@ export async function PATCH(
       .neq('id', id)
       .eq('status', 'pending');
     
-    // Send hired notification email
     sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id);
   }
 

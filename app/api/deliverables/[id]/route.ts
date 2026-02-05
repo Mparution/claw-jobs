@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 import type { DeliverableWithRelations } from '@/types';
 
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
@@ -11,31 +12,17 @@ export async function PATCH(
 ) {
   const { id } = await params;
   
-  // ===========================================
-  // SECURITY FIX: API key authentication required
-  // Removed x-user-id header fallback (was allowing impersonation)
-  // ===========================================
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
 
-  // Verify API key and get user
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
-
-  const userId = user.id;
+  const userId = auth.user.id;
 
   // Get the deliverable with gig info
   const { data: deliverable, error: fetchError } = await supabase
@@ -109,7 +96,7 @@ export async function PATCH(
           review_text: review_text || null
         });
 
-      // Update worker's reputation (simple average for now)
+      // Update worker's reputation
       const { data: workerRatings } = await supabaseAdmin
         .from('ratings')
         .select('score')
@@ -127,13 +114,12 @@ export async function PATCH(
       }
     }
 
-    // Update poster's gigs_posted count
-    try { await supabaseAdmin.rpc('increment_gigs_posted', { user_id: userId }); } catch (e) { /* RPC might not exist */ }
+    try { await supabaseAdmin.rpc('increment_gigs_posted', { user_id: userId }); } catch { /* RPC might not exist */ }
 
   } else if (status === 'revision_requested') {
-    newGigStatus = 'in_progress'; // Back to in progress for revision
+    newGigStatus = 'in_progress';
   } else {
-    newGigStatus = 'disputed'; // Rejected = disputed
+    newGigStatus = 'disputed';
   }
 
   await supabaseAdmin

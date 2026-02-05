@@ -2,6 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 interface WebhookSubscription {
   id: string;
@@ -14,26 +15,16 @@ interface WebhookSubscription {
 
 // List user's webhooks
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key required' }, { status: 401 });
-  }
-
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({ error: auth.error || 'API key required' }, { status: 401 });
   }
 
   const { data: webhooks, error: webhooksError } = await supabaseAdmin
     .from('webhook_subscriptions')
     .select('id, url, events, active, created_at')
-    .eq('user_id', user.id);
+    .eq('user_id', auth.user.id);
 
   if (webhooksError) {
     return NextResponse.json({ error: webhooksError.message }, { status: 500 });
@@ -44,20 +35,10 @@ export async function GET(request: NextRequest) {
 
 // Create webhook subscription
 export async function POST(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key required' }, { status: 401 });
-  }
-
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({ error: auth.error || 'API key required' }, { status: 401 });
   }
 
   let body: { url?: string; events?: string[] };
@@ -86,7 +67,7 @@ export async function POST(request: NextRequest) {
   const { data: webhook, error } = await supabaseAdmin
     .from('webhook_subscriptions')
     .insert({
-      user_id: user.id,
+      user_id: auth.user.id,
       url,
       events,
       secret,
@@ -105,27 +86,17 @@ export async function POST(request: NextRequest) {
     id: typedWebhook.id,
     url: typedWebhook.url,
     events: typedWebhook.events,
-    secret: typedWebhook.secret, // Only shown once!
+    secret: typedWebhook.secret,
     message: 'Save your secret! It won\'t be shown again.'
   });
 }
 
 // Delete webhook subscription
 export async function DELETE(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key required' }, { status: 401 });
-  }
-
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({ error: auth.error || 'API key required' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -139,7 +110,7 @@ export async function DELETE(request: NextRequest) {
     .from('webhook_subscriptions')
     .delete()
     .eq('id', webhookId)
-    .eq('user_id', user.id); // Ensure user owns this webhook
+    .eq('user_id', auth.user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

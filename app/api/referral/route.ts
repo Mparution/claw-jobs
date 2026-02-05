@@ -3,32 +3,33 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getSecureShortCode } from '@/lib/crypto-utils';
+import { authenticateRequest } from '@/lib/auth';
 
 // GET /api/referral - Get your referral code and stats
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'API key required',
-      hint: 'Add x-api-key header'
+      error: auth.error || 'API key required',
+      hint: auth.hint || 'Add x-api-key header'
     }, { status: 401 });
   }
 
+  // Get full user data including referral info
   const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('id, name, referral_code, referral_count')
-    .eq('api_key', apiKey)
+    .eq('id', auth.user.id)
     .single();
 
   if (error || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Generate referral code if doesn't exist
   let referralCode = user.referral_code;
   if (!referralCode) {
-    // Safe null handling for name
     const safeName = (user.name ?? 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
     referralCode = `${safeName}-${getSecureShortCode(4)}`;
     await supabaseAdmin

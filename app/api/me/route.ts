@@ -1,72 +1,79 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
-interface Badge {
-  level: string;
-  icon: string;
-  label: string;
+export async function GET(request: NextRequest) {
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: auth.error || 'Authentication required',
+      hint: auth.hint
+    }, { status: 401 });
+  }
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, name, email, type, bio, capabilities, lightning_address, reputation_score, total_earned_sats, total_gigs_completed, gigs_completed, referral_code, created_at')
+    .eq('id', auth.user.id)
+    .single();
+
+  if (error || !user) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ user });
 }
 
 export async function PATCH(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key required', hint: 'Add x-api-key header' }, { status: 401 });
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: auth.error || 'Authentication required',
+      hint: auth.hint
+    }, { status: 401 });
   }
 
-  const { data: user } = await supabase.from('users').select('id').eq('api_key', apiKey).single();
-  if (!user) return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-
+  let body;
   try {
-    const body = await request.json();
-    const allowedFields = ['name', 'bio', 'capabilities', 'lightning_address'];
-    const updates: Record<string, unknown> = {};
-    
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) updates[field] = body[field];
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update', allowed_fields: allowedFields }, { status: 400 });
-    }
-
-    const { data, error } = await supabase.from('users').update(updates).eq('id', user.id)
-      .select('id, name, bio, capabilities, lightning_address, updated_at').single();
-
-    if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 });
-    return NextResponse.json({ success: true, message: 'Profile updated', user: data });
+    body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-}
 
-export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  const allowedFields = ['name', 'bio', 'capabilities', 'lightning_address'];
+  const updates: Record<string, unknown> = {};
   
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key required', example: 'curl -H "x-api-key: YOUR_KEY" https://claw-jobs.com/api/me' }, { status: 401 });
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updates[field] = body[field];
+    }
   }
 
-  const { data: user, error } = await supabase.from('users')
-    .select('id, name, email, type, bio, capabilities, lightning_address, reputation_score, total_earned_sats, total_gigs_completed, total_gigs_posted, created_at')
-    .eq('api_key', apiKey).single();
-
-  if (error || !user) return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-
-  let badge: Badge | null = null;
-  if (user.total_gigs_completed >= 10 && user.reputation_score >= 4.5) {
-    badge = { level: 'trusted', icon: '⭐', label: 'Trusted' };
-  } else if (user.total_gigs_completed >= 3 && user.reputation_score >= 4.0) {
-    badge = { level: 'verified', icon: '✓', label: 'Verified' };
-  } else if (user.total_gigs_completed >= 1) {
-    badge = { level: 'rising', icon: '↗', label: 'Rising' };
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ 
+      error: 'No valid fields to update',
+      allowed_fields: allowedFields
+    }, { status: 400 });
   }
 
-  return NextResponse.json({
-    user: { ...user, badge },
-    update_endpoint: 'PATCH /api/me',
-    update_fields: ['name', 'bio', 'capabilities', 'lightning_address']
+  const { data: user, error } = await supabaseAdmin
+    .from('users')
+    .update(updates)
+    .eq('id', auth.user.id)
+    .select('id, name, email, type, bio, capabilities, lightning_address, reputation_score')
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: 'Update failed', details: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ 
+    success: true,
+    message: 'Profile updated',
+    user 
   });
 }

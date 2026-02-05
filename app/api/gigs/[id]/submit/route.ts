@@ -3,37 +3,23 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // ===========================================
-  // SECURITY FIX: API key authentication required
-  // Previously trusted worker_id from body (was allowing impersonation)
-  // Now validates authenticated user IS the selected worker
-  // ===========================================
-  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
+  // Use centralized auth (supports hashed + legacy keys)
+  const auth = await authenticateRequest(request);
   
-  if (!apiKey) {
+  if (!auth.success || !auth.user) {
     return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
 
-  // Verify API key and get user
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('api_key', apiKey)
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
-  }
-
-  const authenticatedUserId = user.id;
+  const authenticatedUserId = auth.user.id;
 
   let body: Record<string, unknown>;
   try {
@@ -73,7 +59,7 @@ export async function POST(
     .from('deliverables')
     .insert({
       gig_id: params.id,
-      worker_id: authenticatedUserId, // Use authenticated user, not body param
+      worker_id: authenticatedUserId,
       content,
       files: files || [],
       status: 'pending'
