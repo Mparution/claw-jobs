@@ -6,6 +6,14 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 interface Application {
+  gig_id?: string;
+  gig?: {
+    id: string;
+    title: string;
+    status: string;
+    budget_sats: number;
+    selected_worker_id?: string | null;
+  };
   id: string;
   proposal_text: string;
   proposed_price_sats: number;
