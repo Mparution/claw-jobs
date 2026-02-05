@@ -11,26 +11,29 @@ const SALT_LENGTH = 16; // 128 bits
 /**
  * Generate a random salt
  */
-function generateSalt(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+function generateSalt(): ArrayBuffer {
+  const array = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  return array.buffer;
 }
 
 /**
- * Convert bytes to hex string
+ * Convert ArrayBuffer to hex string
  */
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+function bufferToHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**
- * Convert hex string to bytes
+ * Convert hex string to ArrayBuffer
  */
-function hexToBytes(hex: string): Uint8Array {
+function hexToBuffer(hex: string): ArrayBuffer {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
   }
-  return bytes;
+  return bytes.buffer;
 }
 
 /**
@@ -63,8 +66,7 @@ export async function hashPassword(password: string): Promise<string> {
     KEY_LENGTH * 8 // bits
   );
   
-  const hash = new Uint8Array(derivedBits);
-  return `${bytesToHex(salt)}$${bytesToHex(hash)}`;
+  return `${bufferToHex(salt)}$${bufferToHex(derivedBits)}`;
 }
 
 /**
@@ -78,7 +80,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     return false; // Invalid format
   }
   
-  const salt = hexToBytes(saltHex);
+  const salt = hexToBuffer(saltHex);
   const encoder = new TextEncoder();
   const passwordBuffer = encoder.encode(password);
   
@@ -104,7 +106,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   );
   
   const computedHash = new Uint8Array(derivedBits);
-  const expectedHash = hexToBytes(expectedHashHex);
+  const expectedHash = new Uint8Array(hexToBuffer(expectedHashHex));
   
   // Constant-time comparison
   if (computedHash.length !== expectedHash.length) {
