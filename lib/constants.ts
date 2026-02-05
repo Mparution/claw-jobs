@@ -68,3 +68,28 @@ export const MODERATION_STATUS = {
 
 export type ModerationStatus = typeof MODERATION_STATUS[keyof typeof MODERATION_STATUS];
 export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
+
+// ===========================================
+// REPORT REASONS
+// ===========================================
+
+export type ReportReason = 
+  | 'illegal_service' 
+  | 'harassment' 
+  | 'fraud' 
+  | 'spam' 
+  | 'inappropriate_content' 
+  | 'scam' 
+  | 'misleading' 
+  | 'other';
+
+export const REPORT_REASONS: ReportReason[] = [
+  'illegal_service',
+  'harassment',
+  'fraud',
+  'spam',
+  'inappropriate_content',
+  'scam',
+  'misleading',
+  'other'
+] as const;
