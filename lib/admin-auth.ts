@@ -25,21 +25,28 @@ export class AuthError extends Error {
 
 /**
  * Constant-time string comparison to prevent timing attacks
- * Returns true if strings are equal, false otherwise
+ * Uses crypto.subtle.timingSafeEqual via a digest comparison
+ * This avoids early-exit on length mismatch
  */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still do the comparison to maintain constant time
-    // but we know the result will be false
-    b = a;
-  }
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  
+  // Hash both strings - this normalizes length and provides constant-time comparison
+  const [hashA, hashB] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(a)),
+    crypto.subtle.digest('SHA-256', encoder.encode(b))
+  ]);
+  
+  // Compare the hashes byte-by-byte in constant time
+  const viewA = new Uint8Array(hashA);
+  const viewB = new Uint8Array(hashB);
   
   let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < viewA.length; i++) {
+    result |= viewA[i] ^ viewB[i];
   }
   
-  return result === 0 && a.length === b.length;
+  return result === 0;
 }
 
 /**
@@ -56,9 +63,9 @@ export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
-  // SECURITY FIX: Use timing-safe comparison to prevent timing attacks
+  // SECURITY: Use timing-safe comparison to prevent timing attacks
   const envAdminSecret = process.env.ADMIN_SECRET;
-  if (adminSecret && envAdminSecret && timingSafeEqual(adminSecret, envAdminSecret)) {
+  if (adminSecret && envAdminSecret && await timingSafeEqual(adminSecret, envAdminSecret)) {
     return {
       id: 'system-admin',
       name: 'System Admin',

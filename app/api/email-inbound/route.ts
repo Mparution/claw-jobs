@@ -15,8 +15,8 @@ async function verifyWebhookSignature(request: NextRequest, body: string): Promi
   if (!webhookSecret) {
     // No secret configured - log warning but allow (for backwards compatibility)
     // In production, you should ALWAYS configure RESEND_WEBHOOK_SECRET
-    console.warn('RESEND_WEBHOOK_SECRET not configured - webhook verification skipped');
-    return true;
+    console.error("RESEND_WEBHOOK_SECRET not configured - rejecting request");
+    return false;
   }
   
   if (!signature || !timestamp || !webhookId) {
