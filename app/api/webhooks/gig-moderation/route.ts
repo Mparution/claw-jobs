@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { moderateGig } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
+import { createInvoice, isTestnetMode } from '@/lib/lightning';
 
-// Webhook secret for Supabase database webhooks
-const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET || process.env.ADMIN_SECRET;
+// Webhook secret - REQUIRED, no fallback
+const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET;
 
 // Telegram notification config
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -147,11 +148,16 @@ async function sendTelegramNotification(message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  // Verify webhook secret
+  // Verify webhook secret - REQUIRED, reject if not configured
+  if (!WEBHOOK_SECRET) {
+    console.error('SUPABASE_WEBHOOK_SECRET not configured');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
+
   const providedSecret = request.headers.get('x-webhook-secret') || 
                          request.headers.get('authorization')?.replace('Bearer ', '');
   
-  if (!WEBHOOK_SECRET || providedSecret !== WEBHOOK_SECRET) {
+  if (providedSecret !== WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -166,6 +172,7 @@ export async function POST(request: NextRequest) {
       category: string;
       poster_id: string;
       moderation_status?: string;
+      is_testnet?: boolean;
       created_at: string;
     };
     old_record?: unknown;
@@ -210,16 +217,57 @@ export async function POST(request: NextRequest) {
     } : null
   });
 
+  // Prepare update data
+  const updateData: {
+    moderation_status: string;
+    moderation_notes: string | null;
+    moderated_at: string;
+    moderated_by: string;
+    flagged_keywords: string[] | null;
+    status?: string;
+    escrow_invoice?: string;
+    escrow_payment_hash?: string;
+    escrow_paid?: boolean;
+  } = {
+    moderation_status: result.status,
+    moderation_notes: result.reason || null,
+    moderated_at: new Date().toISOString(),
+    moderated_by: 'astro',
+    flagged_keywords: result.flaggedIssues.length > 0 ? result.flaggedIssues : null
+  };
+
+  // If approved, update gig status to 'open' and create escrow invoice
+  if (result.status === 'approved') {
+    updateData.status = 'open';
+    
+    const is_testnet = gig.is_testnet ?? isTestnetMode();
+    
+    if (is_testnet) {
+      // Testnet: simulate escrow payment
+      updateData.escrow_paid = true;
+      updateData.escrow_invoice = 'testnet_simulated';
+      updateData.escrow_payment_hash = `testnet_${gig.id}`;
+    } else {
+      // Mainnet: create real Lightning invoice for escrow
+      try {
+        const invoice = await createInvoice(gig.budget_sats, `Escrow for gig: ${gig.title}`);
+        updateData.escrow_invoice = invoice.invoice;
+        updateData.escrow_payment_hash = invoice.payment_hash;
+      } catch (invoiceError) {
+        console.error('Failed to create escrow invoice:', invoiceError);
+        // Still approve the gig, but log the error
+        // The invoice can be created later via admin action
+        await sendTelegramNotification(
+          `⚠️ <b>Escrow Invoice Failed</b>\n\nGig "${gig.title}" approved but invoice creation failed.\nError: ${invoiceError instanceof Error ? invoiceError.message : 'Unknown'}`
+        );
+      }
+    }
+  }
+
   // Update gig in database
   const { error: updateError } = await supabaseAdmin
     .from('gigs')
-    .update({
-      moderation_status: result.status,
-      moderation_notes: result.reason || null,
-      moderated_at: new Date().toISOString(),
-      moderated_by: 'astro',
-      flagged_keywords: result.flaggedIssues.length > 0 ? result.flaggedIssues : null
-    })
+    .update(updateData)
     .eq('id', gig.id);
 
   if (updateError) {
@@ -256,7 +304,8 @@ export async function POST(request: NextRequest) {
     success: true,
     gig_id: gig.id,
     moderation_status: result.status,
-    reason: result.reason
+    reason: result.reason,
+    escrow_created: result.status === 'approved' && !!updateData.escrow_invoice
   });
 }
 
@@ -265,6 +314,7 @@ export async function GET() {
   return NextResponse.json({ 
     status: 'ok', 
     service: 'gig-moderation-webhook',
+    configured: !!WEBHOOK_SECRET,
     timestamp: new Date().toISOString()
   });
 }
