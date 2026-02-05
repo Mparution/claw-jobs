@@ -1,40 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 export const runtime = 'edge';
 
 const REFUND_DELAY_DAYS = 7;
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { user_id, payment_hash } = body;
-
-    if (!user_id && !payment_hash) {
-      return NextResponse.json(
-        { error: 'user_id or payment_hash required' },
-        { status: 400 }
-      );
-    }
-
-    let query = supabaseAdmin.from('users').select('*');
-    if (user_id) {
-      query = query.eq('id', user_id);
-    } else {
-      query = query.eq('deposit_payment_hash', payment_hash);
+    // ===========================================
+    // SECURITY FIX: Require authentication
+    // Users can only verify their own deposits
+    // OR provide a valid payment_hash (which is secret)
+    // ===========================================
+    
+    let body: { payment_hash?: string };
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
     }
     
-    const { data: user, error: userError } = await query.single();
+    const { payment_hash } = body;
+    let userId: string;
+
+    // Option 1: Authenticate with API key
+    const auth = await authenticateRequest(request);
+    
+    if (auth.success && auth.user) {
+      userId = auth.user.id;
+    } else if (payment_hash) {
+      // Option 2: Use payment_hash as proof (it's a secret the user received)
+      const { data: userByHash } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('deposit_payment_hash', payment_hash)
+        .single();
+      
+      if (!userByHash) {
+        // Return generic error to prevent enumeration
+        return NextResponse.json(
+          { error: 'Verification failed' },
+          { status: 400 }
+        );
+      }
+      userId = userByHash.id;
+    } else {
+      return NextResponse.json({
+        error: 'Authentication required',
+        hint: 'Provide x-api-key header OR payment_hash in body'
+      }, { status: 401 });
+    }
+
+    // Get user data
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id, deposit_paid, deposit_payment_hash, account_status')
+      .eq('id', userId)
+      .single();
 
     if (userError || !user) {
+      // Generic error to prevent enumeration
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: 'Verification failed' },
+        { status: 400 }
       );
     }
 
@@ -115,7 +144,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Verify deposit error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Verification failed' },
       { status: 500 }
     );
   }

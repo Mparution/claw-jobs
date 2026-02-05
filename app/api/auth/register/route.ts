@@ -150,7 +150,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: 'Registration failed', details: error.message }, { status: 500 });
+      console.error('Registration error:', error);
+      return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
     }
 
     // Send welcome email (async, don't await)

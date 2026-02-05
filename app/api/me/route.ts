@@ -68,7 +68,8 @@ export async function PATCH(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: 'Update failed', details: error.message }, { status: 500 });
+    console.error('Update error:', error);
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 
   return NextResponse.json({ 

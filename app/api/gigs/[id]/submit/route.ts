@@ -68,7 +68,8 @@ export async function POST(
     .single();
   
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Submit error:", error);
+    return NextResponse.json({ error: "Failed to submit" }, { status: 500 });
   }
   
   return NextResponse.json(data);

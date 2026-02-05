@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false });
   
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Admin reports error:', error);
+    return NextResponse.json({ error: 'Operation failed' }, { status: 500 });
   }
   
   return NextResponse.json(data);
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest) {
     .eq('id', report_id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Admin reports error:', error);
+    return NextResponse.json({ error: 'Operation failed' }, { status: 500 });
   }
   
   return NextResponse.json({ 

@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 401 });
+    console.error('Signin error:', error);
+    return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
   }
 
   // Ensure user profile exists in users table (fallback for failed signups)

@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: true });
   
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Moderation error:', error);
+    return NextResponse.json({ error: 'Operation failed' }, { status: 500 });
   }
   
   const gigIds = data.map((g: { id: string }) => g.id);

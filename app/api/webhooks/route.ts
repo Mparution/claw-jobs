@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Webhook error:", error);
+    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }
 
   const typedWebhook = webhook as WebhookSubscription;
@@ -113,7 +114,8 @@ export async function DELETE(request: NextRequest) {
     .eq('user_id', auth.user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Webhook error:", error);
+    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, message: 'Webhook deleted' });
