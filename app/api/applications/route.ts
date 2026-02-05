@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 

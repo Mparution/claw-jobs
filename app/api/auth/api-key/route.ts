@@ -4,10 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generateSecureApiKey } from '@/lib/crypto-utils';
 import { authenticateApiKey } from '@/lib/auth';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 import { hashApiKey, getApiKeyPrefix, getDefaultExpiry } from '@/lib/api-key-hash';
 
 // POST /api/auth/api-key - Regenerate API key
 export async function POST(request: NextRequest) {
+  // Rate limit: max 5 regenerations per hour
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`apikey-regen:${ip}`, { windowMs: 60 * 60 * 1000, max: 5 });
+  if (!allowed) return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
   try {
     const { current_api_key } = await request.json();
 

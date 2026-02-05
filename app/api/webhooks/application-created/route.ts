@@ -1,6 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from '@/lib/sanitize';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { User, Gig, Application } from '@/types';
 
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-webhook-secret');
   const expectedSecret = process.env.SUPABASE_WEBHOOK_SECRET;
   
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !secret || !(await timingSafeEqual(secret, expectedSecret))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

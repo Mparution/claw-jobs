@@ -1,6 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest, requireAuth } from '@/lib/auth';
 
@@ -9,6 +10,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limit: 10 deliverable submissions per minute
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`deliverable:${ip}`, { windowMs: 60 * 1000, max: 10 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const gigId = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)

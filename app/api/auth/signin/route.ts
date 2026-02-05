@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         name: userName,
         type: userType,
         capabilities: [],
-        reputation_score: 0,
+        reputation_score: 5.0,
         total_earned_sats: 0,
         total_gigs_completed: 0,
         total_gigs_posted: 0,

@@ -3,12 +3,23 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generateSecureApiKey } from '@/lib/crypto-utils';
-import { authenticateRequest } from '@/lib/auth';
+import { hashApiKey, getApiKeyPrefix, getDefaultExpiry } from '@/lib/api-key-hash';
+import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 
 const DEPOSIT_AMOUNT_SATS = 500;
 const REFUND_DELAY_DAYS = 7;
 
 export async function POST(request: NextRequest) {
+  // FIX #6: Add rate limiting
+  const ip = getClientIP(request);
+  const { allowed, resetIn } = rateLimit(`agent-register:${ip}`, RATE_LIMITS.register);
+  if (!allowed) {
+    return NextResponse.json({ 
+      error: 'Too many registration attempts',
+      retry_after_seconds: Math.ceil(resetIn / 1000)
+    }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { name, email, lightning_address, capabilities, bio } = body;
@@ -33,8 +44,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use secure API key generation
+    // Generate secure API key
     const apiKey = generateSecureApiKey('agent_');
+    
+    // FIX #2: Hash the API key instead of storing plaintext
+    const api_key_hash = await hashApiKey(apiKey);
+    const api_key_prefix = getApiKeyPrefix(apiKey);
+    const api_key_expires_at = getDefaultExpiry();
 
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
@@ -45,7 +61,11 @@ export async function POST(request: NextRequest) {
         type: 'agent',
         capabilities: capabilities || [],
         bio: bio || null,
-        api_key: apiKey,
+        // Store hash, not plaintext
+        api_key: null,
+        api_key_hash,
+        api_key_prefix,
+        api_key_expires_at,
         account_status: 'pending_deposit',
         deposit_amount_sats: DEPOSIT_AMOUNT_SATS,
         deposit_paid: false,
@@ -68,7 +88,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       user_id: user.id,
-      api_key: apiKey,
+      api_key: apiKey, // Return to user ONCE - they must save it
+      warning: 'Save your API key now! It cannot be recovered.',
       deposit: {
         amount_sats: DEPOSIT_AMOUNT_SATS,
         refund_after_days: REFUND_DELAY_DAYS,
@@ -78,55 +99,14 @@ export async function POST(request: NextRequest) {
       next_steps: [
         '1. Get your deposit invoice from the payment_endpoint',
         '2. Pay the invoice to activate your account',
-        '3. Use your API key to authenticate requests',
-        '4. Start browsing and bidding on gigs',
-        `5. After ${REFUND_DELAY_DAYS} days, deposit refunded to your Lightning address`
+        '3. Start applying to gigs!'
       ]
-    }, { status: 201 });
-
+    });
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: 'Invalid request' },
+      { status: 400 }
     );
   }
-}
-
-export async function GET(request: NextRequest) {
-  // Use centralized auth (supports hashed + legacy keys)
-  const auth = await authenticateRequest(request);
-  
-  if (!auth.success || !auth.user) {
-    return NextResponse.json(
-      { error: auth.error || 'API key required' },
-      { status: 401 }
-    );
-  }
-
-  // Get additional user data
-  const { data: user, error } = await supabaseAdmin
-    .from('users')
-    .select('id, name, account_status, deposit_paid, deposit_paid_at, refund_eligible_at, deposit_amount_sats')
-    .eq('id', auth.user.id)
-    .single();
-
-  if (error || !user) {
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({
-    user_id: user.id,
-    name: user.name,
-    account_status: user.account_status,
-    deposit: {
-      amount_sats: user.deposit_amount_sats,
-      paid: user.deposit_paid,
-      paid_at: user.deposit_paid_at,
-      refund_eligible_at: user.refund_eligible_at
-    }
-  });
 }

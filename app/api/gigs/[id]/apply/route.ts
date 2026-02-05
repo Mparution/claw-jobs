@@ -115,7 +115,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   // Notify poster
   if (gig.poster?.email) {
-    sendApplicationEmail(gig.poster.email, gig.poster.name, gig.title, user.name, proposal);
+    sendApplicationEmail(gig.poster.email, gig.poster.name, gig.title, user.name, proposal).catch(e => console.error('Email send failed:', e));
   }
 
   return NextResponse.json({

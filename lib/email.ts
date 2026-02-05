@@ -1,3 +1,4 @@
+import { escapeHtml } from './sanitize';
 // ===========================================
 // CLAW JOBS - EMAIL UTILITIES
 // ===========================================
@@ -70,16 +71,16 @@ export async function sendWelcomeEmail(email: string, name: string, apiKey: stri
 
   return sendEmail({
     to: email,
-    subject: `Welcome to Claw Jobs, ${name}! ⚡`,
+    subject: `Welcome to Claw Jobs, ${escapeHtml(name)}! ⚡`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #f97316;">Welcome to Claw Jobs! 🤖⚡</h1>
-        <p>Hey <strong>${name}</strong>,</p>
+        <p>Hey <strong>${escapeHtml(name)}</strong>,</p>
         <p>You're now part of the gig economy for AI agents and humans.</p>
         
         <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #92400e;">⚠️ Your API Key (Save This!)</h3>
-          <code style="background: #1e293b; color: #22c55e; padding: 10px; display: block; border-radius: 4px; word-break: break-all;">${apiKey}</code>
+          <code style="background: #1e293b; color: #22c55e; padding: 10px; display: block; border-radius: 4px; word-break: break-all;">${escapeHtml(apiKey)}</code>
           <p style="font-size: 14px; color: #92400e; font-weight: bold; margin-bottom: 0;">
             This key is shown ONCE. Store it securely!
           </p>
@@ -111,17 +112,17 @@ export async function sendWelcomeEmail(email: string, name: string, apiKey: stri
 
 export function newApplicationEmail(gigTitle: string, applicantName: string, coverLetter: string) {
   return {
-    subject: `🤖 New application for "${gigTitle}"`,
+    subject: `🤖 New application for "${escapeHtml(gigTitle)}"`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f97316;">New Application on Claw Jobs!</h2>
-        <p><strong>${applicantName}</strong> applied to your gig:</p>
+        <p><strong>${escapeHtml(applicantName)}</strong> applied to your gig:</p>
         <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <h3 style="margin: 0 0 8px 0;">${gigTitle}</h3>
+          <h3 style="margin: 0 0 8px 0;">${escapeHtml(gigTitle)}</h3>
         </div>
         <p><strong>Cover Letter:</strong></p>
         <blockquote style="border-left: 3px solid #f97316; padding-left: 16px; margin: 16px 0; color: #4b5563;">
-          ${coverLetter}
+          ${escapeHtml(coverLetter)}
         </blockquote>
         <a href="https://claw-jobs.com/dashboard" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
           Review Application
@@ -136,13 +137,13 @@ export function newApplicationEmail(gigTitle: string, applicantName: string, cov
 
 export function applicationAcceptedEmail(gigTitle: string, posterName: string) {
   return {
-    subject: `✅ You got the gig: "${gigTitle}"`,
+    subject: `✅ You got the gig: "${escapeHtml(gigTitle)}"`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #22c55e;">🎉 Congratulations!</h2>
-        <p><strong>${posterName}</strong> selected you for the gig:</p>
+        <p><strong>${escapeHtml(posterName)}</strong> selected you for the gig:</p>
         <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <h3 style="margin: 0 0 8px 0;">${gigTitle}</h3>
+          <h3 style="margin: 0 0 8px 0;">${escapeHtml(gigTitle)}</h3>
         </div>
         <p>Time to get to work! Complete the deliverables and submit for review.</p>
         <a href="https://claw-jobs.com/dashboard" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
@@ -158,16 +159,16 @@ export function applicationAcceptedEmail(gigTitle: string, posterName: string) {
 
 export function gigCompletedEmail(gigTitle: string, workerName: string, amountSats: number) {
   return {
-    subject: `⚡ Payment sent: ${amountSats} sats for "${gigTitle}"`,
+    subject: `⚡ Payment sent: ${amountSats} sats for "${escapeHtml(gigTitle)}"`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f97316;">⚡ Payment Complete!</h2>
-        <p>Great work, <strong>${workerName}</strong>!</p>
+        <p>Great work, <strong>${escapeHtml(workerName)}</strong>!</p>
         <div style="background: #fef3c7; padding: 16px; border-radius: 8px; margin: 16px 0; text-align: center;">
           <p style="margin: 0; font-size: 32px; font-weight: bold; color: #f97316;">${amountSats.toLocaleString()} sats</p>
           <p style="margin: 4px 0 0 0; color: #92400e;">sent to your Lightning wallet</p>
         </div>
-        <p>Completed gig: <strong>${gigTitle}</strong></p>
+        <p>Completed gig: <strong>${escapeHtml(gigTitle)}</strong></p>
         <a href="https://claw-jobs.com/gigs" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
           Find More Gigs
         </a>
@@ -181,13 +182,13 @@ export function gigCompletedEmail(gigTitle: string, workerName: string, amountSa
 
 export function gigRejectedEmail(gigTitle: string, reason: string) {
   return {
-    subject: `❌ Gig rejected: "${gigTitle}"`,
+    subject: `❌ Gig rejected: "${escapeHtml(gigTitle)}"`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #ef4444;">Gig Not Approved</h2>
-        <p>Your gig <strong>"${gigTitle}"</strong> was not approved.</p>
+        <p>Your gig <strong>"${escapeHtml(gigTitle)}"</strong> was not approved.</p>
         <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #ef4444;">
-          <p style="margin: 0; color: #991b1b;"><strong>Reason:</strong> ${reason}</p>
+          <p style="margin: 0; color: #991b1b;"><strong>Reason:</strong> ${escapeHtml(reason)}</p>
         </div>
         <p>Please review our <a href="https://claw-jobs.com/terms">terms of service</a> and <a href="https://claw-jobs.com/prohibited">prohibited categories</a>.</p>
         <p>If you believe this was a mistake, you can post a revised gig or contact support.</p>
@@ -204,13 +205,13 @@ export function gigRejectedEmail(gigTitle: string, reason: string) {
 
 export function deliverableSubmittedEmail(gigTitle: string, workerName: string) {
   return {
-    subject: `📦 Deliverable submitted for "${gigTitle}"`,
+    subject: `📦 Deliverable submitted for "${escapeHtml(gigTitle)}"`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f97316;">📦 Work Submitted!</h2>
-        <p><strong>${workerName}</strong> has submitted their deliverable for:</p>
+        <p><strong>${escapeHtml(workerName)}</strong> has submitted their deliverable for:</p>
         <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <h3 style="margin: 0 0 8px 0;">${gigTitle}</h3>
+          <h3 style="margin: 0 0 8px 0;">${escapeHtml(gigTitle)}</h3>
         </div>
         <p>Please review the submission and approve to release payment.</p>
         <a href="https://claw-jobs.com/dashboard" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">

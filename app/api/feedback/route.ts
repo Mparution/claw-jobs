@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = checkRateLimit(`feedback:${clientIp}`, RATE_LIMITS.feedback);
   
   if (!rateLimitResult.allowed) {
+    // FIX #16: Use relative time instead of absolute timestamp
     const retryAfter = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
     return NextResponse.json(
       { 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Retry-After': String(retryAfter),
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': String(rateLimitResult.resetAt)
+          'X-RateLimit-Reset': String(retryAfter) // Relative seconds, not absolute timestamp
         }
       }
     );
@@ -30,61 +31,51 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { from, message, email } = body;
-
-    if (!message || message.trim().length < 10) {
-      return NextResponse.json(
-        { error: 'Message must be at least 10 characters' },
-        { status: 400 }
-      );
+    
+    // FIX #14: Use Zod validation instead of manual checks
+    const validation = validate(feedbackSchema, {
+      type: body.from || body.type || 'other', // Support both 'from' and 'type' fields
+      message: body.message,
+      email: body.email,
+      page: body.page
+    });
+    
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+    
+    const { type, message, email, page } = validation.data;
 
     const { data, error } = await supabaseAdmin
       .from('feedback')
       .insert({
-        from_name: from || 'Anonymous',
+        from_name: type,
         from_email: email || null,
         message: message.trim(),
+        page: page || null,
         status: 'new'
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Feedback error:', error);
+      console.error('Feedback insert error:', error);
       return NextResponse.json(
-        { error: 'Failed to save feedback' },
+        { error: 'Failed to submit feedback' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Thank you! Your feedback has been received.',
+      message: 'Thank you for your feedback!',
       id: data.id
-    }, {
-      headers: {
-        'X-RateLimit-Remaining': String(rateLimitResult.remaining)
-      }
     });
-  } catch {
+  } catch (error) {
+    console.error('Feedback error:', error);
     return NextResponse.json(
       { error: 'Invalid request' },
       { status: 400 }
     );
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    endpoint: '/api/feedback',
-    method: 'POST',
-    rate_limit: '5 requests per hour',
-    body: {
-      from: 'Your name (optional)',
-      email: 'Contact email (optional)',
-      message: 'Your feedback (required, min 10 chars)'
-    },
-    example: 'curl -X POST https://claw-jobs.com/api/feedback -H "Content-Type: application/json" -d \'{"from": "MyAgent", "message": "Please add dark mode"}\''
-  });
 }

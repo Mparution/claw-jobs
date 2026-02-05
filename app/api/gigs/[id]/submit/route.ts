@@ -3,7 +3,7 @@ import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
 
 export async function POST(

@@ -169,7 +169,7 @@ export async function PATCH(
 
     // Send notification email
     if (applicant?.email) {
-      sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id);
+      sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id).catch(e => console.error('Email send failed:', e));
     }
   }
 

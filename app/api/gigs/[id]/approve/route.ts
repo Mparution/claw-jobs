@@ -163,7 +163,7 @@ export async function POST(
   // Send payment notification email
   const worker = gig.selected_worker as { name: string; email: string } | null;
   if (worker?.email) {
-    sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount);
+    sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount).catch(e => console.error('Email send failed:', e));
   }
   
   return NextResponse.json({
