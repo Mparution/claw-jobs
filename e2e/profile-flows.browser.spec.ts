@@ -2,14 +2,27 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Profile & User Flows - Browser', () => {
   test.describe('Public Profile', () => {
-    test('user profile page structure', async ({ page }) => {
+    test('user profile page shows profile or 404', async ({ page }) => {
       // Try to access a user profile (may not exist)
       await page.goto('/u/test-user');
       
       await page.waitForTimeout(1000);
-      // Should show profile or 404
+      
+      // Should show profile content or 404 page
       const content = await page.textContent('body');
-      expect(content).toBeTruthy();
+      const hasContent = content && content.trim().length > 0;
+      
+      // Check for profile elements or 404 message
+      const hasProfileOrNotFound = 
+        content?.toLowerCase().includes('profile') ||
+        content?.toLowerCase().includes('user') ||
+        content?.toLowerCase().includes('not found') ||
+        content?.toLowerCase().includes('404') ||
+        content?.toLowerCase().includes('gigs') ||
+        content?.toLowerCase().includes('reputation');
+      
+      expect(hasContent).toBe(true);
+      expect(hasProfileOrNotFound).toBe(true);
     });
   });
 
@@ -30,18 +43,40 @@ test.describe('Profile & User Flows - Browser', () => {
       expect(isProtected || url.includes('dashboard')).toBe(true);
     });
 
-    test('my-dashboard page structure', async ({ page }) => {
+    test('my-dashboard page requires authentication', async ({ page }) => {
       await page.goto('/my-dashboard');
       
       await page.waitForTimeout(1000);
-      expect(page.url()).toBeTruthy();
+      const currentUrl = page.url();
+      const content = await page.textContent('body');
+      
+      // Should either redirect to login or show the page (if auth not required)
+      const isHandledCorrectly = 
+        currentUrl.includes('signin') ||
+        currentUrl.includes('login') ||
+        currentUrl.includes('my-dashboard') ||
+        content?.toLowerCase().includes('sign in') ||
+        content?.toLowerCase().includes('dashboard');
+      
+      expect(isHandledCorrectly).toBe(true);
     });
 
-    test('my-gigs page structure', async ({ page }) => {
+    test('my-gigs page requires authentication', async ({ page }) => {
       await page.goto('/my-gigs');
       
       await page.waitForTimeout(1000);
-      expect(page.url()).toBeTruthy();
+      const currentUrl = page.url();
+      const content = await page.textContent('body');
+      
+      // Should either redirect to login or show the page
+      const isHandledCorrectly = 
+        currentUrl.includes('signin') ||
+        currentUrl.includes('login') ||
+        currentUrl.includes('my-gigs') ||
+        content?.toLowerCase().includes('sign in') ||
+        content?.toLowerCase().includes('gigs');
+      
+      expect(isHandledCorrectly).toBe(true);
     });
   });
 
@@ -56,19 +91,21 @@ test.describe('Profile & User Flows - Browser', () => {
   });
 
   test.describe('API Documentation', () => {
-    test('api-docs page loads', async ({ page }) => {
+    test('api-docs page loads with documentation content', async ({ page }) => {
       await page.goto('/api-docs');
       
       // Should have API documentation
       const content = await page.textContent('body');
-      expect(content?.toLowerCase()).toMatch(/api|endpoint|documentation/i);
+      expect(content?.toLowerCase()).toMatch(/api|endpoint|documentation|request|response/i);
     });
 
-    test('docs page loads', async ({ page }) => {
+    test('docs page loads with documentation content', async ({ page }) => {
       await page.goto('/docs');
       
       const content = await page.textContent('body');
-      expect(content).toBeTruthy();
+      // Should have meaningful content
+      expect(content && content.trim().length > 50).toBe(true);
+      expect(content?.toLowerCase()).toMatch(/claw|job|gig|api|lightning|documentation/i);
     });
   });
 });

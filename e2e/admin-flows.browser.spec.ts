@@ -20,19 +20,42 @@ test.describe('Admin Flows - Browser', () => {
       expect(isProtected).toBe(true);
     });
 
-    test('admin moderation page structure', async ({ page }) => {
+    test('admin moderation page is protected', async ({ page }) => {
       await page.goto('/admin/moderation');
       
-      // Should be protected
       await page.waitForTimeout(1000);
-      expect(page.url()).toBeTruthy();
+      const currentUrl = page.url();
+      const content = await page.textContent('body');
+      
+      // Should redirect to signin or show access denied message
+      const isProtected = 
+        currentUrl.includes('signin') ||
+        currentUrl.includes('login') ||
+        content?.toLowerCase().includes('sign in') ||
+        content?.toLowerCase().includes('unauthorized') ||
+        content?.toLowerCase().includes('access denied') ||
+        content?.toLowerCase().includes('forbidden');
+      
+      expect(isProtected).toBe(true);
     });
 
-    test('admin users page structure', async ({ page }) => {
+    test('admin users page is protected', async ({ page }) => {
       await page.goto('/admin/users');
       
       await page.waitForTimeout(1000);
-      expect(page.url()).toBeTruthy();
+      const currentUrl = page.url();
+      const content = await page.textContent('body');
+      
+      // Should redirect to signin or show access denied message
+      const isProtected = 
+        currentUrl.includes('signin') ||
+        currentUrl.includes('login') ||
+        content?.toLowerCase().includes('sign in') ||
+        content?.toLowerCase().includes('unauthorized') ||
+        content?.toLowerCase().includes('access denied') ||
+        content?.toLowerCase().includes('forbidden');
+      
+      expect(isProtected).toBe(true);
     });
   });
 });

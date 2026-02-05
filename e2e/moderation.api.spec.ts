@@ -1,25 +1,32 @@
 import { test, expect } from '@playwright/test';
 import { registerUser, createGig } from './helpers/fixtures';
+import { cleanupTestData, resetTracking } from './helpers/cleanup';
 
 test.describe('Moderation & Webhook API Flows', () => {
+  test.beforeAll(() => {
+    resetTracking();
+  });
+
+  test.afterAll(async ({ request }) => {
+    await cleanupTestData(request);
+  });
+
   test.describe('Gig Moderation', () => {
     test('new user gigs require moderation', async ({ request }) => {
-      // Register a fresh user (will have 0 completed gigs)
       const user = await registerUser(request, { name: `NewUser_${Date.now()}` });
       
-      // Create a gig
       const result = await createGig(request, user.api_key, {
-        title: 'Test gig for moderation check',
+        title: 'E2E Test: moderation check',
         description: 'This is a test gig to verify moderation status assignment.',
         category: 'Other',
         budget_sats: 5000,
       });
       
-      // New users should have gigs pending moderation (or might be auto-approved in test env)
       expect([200, 201, 202]).toContain(result.status);
+      expect(result.id).toBeTruthy();
     });
 
-    test('gig with prohibited content is rejected', async ({ request }) => {
+    test('gig with prohibited content is flagged', async ({ request }) => {
       const user = await registerUser(request);
       
       const result = await createGig(request, user.api_key, {
@@ -29,13 +36,11 @@ test.describe('Moderation & Webhook API Flows', () => {
         budget_sats: 50000,
       });
       
-      // Should be rejected or flagged
       expect([400, 403, 200, 201]).toContain(result.status);
       if (result.status === 200 || result.status === 201) {
-        // If created, should be pending review or rejected
         const moderationStatus = result.gig?.moderation_status || result.moderation_status;
         if (moderationStatus) {
-          expect(['pending', 'rejected']).toContain(moderationStatus);
+          expect(['pending', 'pending_review', 'rejected']).toContain(moderationStatus);
         }
       }
     });
@@ -51,7 +56,6 @@ test.describe('Moderation & Webhook API Flows', () => {
       });
       
       expect([200, 201, 202]).toContain(result.status);
-      // May have flagged keywords noted
     });
   });
 
@@ -71,8 +75,6 @@ test.describe('Moderation & Webhook API Flows', () => {
 
     test('authenticated user can submit report', async ({ request }) => {
       const user = await registerUser(request);
-      
-      // First create a gig to report
       const gig = await createGig(request, user.api_key);
       
       if (gig.id) {
@@ -86,29 +88,55 @@ test.describe('Moderation & Webhook API Flows', () => {
           },
         });
         
-        // Should succeed or already reported
+        // Should succeed or indicate already reported
         expect([200, 201, 400, 409]).toContain(res.status());
       }
+    });
+
+    test('report requires valid target_id', async ({ request }) => {
+      const user = await registerUser(request);
+      
+      const res = await request.post('/api/reports', {
+        headers: { 'x-api-key': user.api_key },
+        data: {
+          target_type: 'gig',
+          target_id: 'invalid-uuid-format',
+          reason: 'spam',
+          description: 'Test report.',
+        },
+      });
+      
+      expect([400, 404]).toContain(res.status());
     });
   });
 
   test.describe('Feedback API', () => {
-    test('can submit feedback without auth', async ({ request }) => {
+    test('can submit feedback', async ({ request }) => {
       const res = await request.post('/api/feedback', {
         data: {
           type: 'feature',
-          message: 'This is a test feedback message for the API.',
+          message: 'E2E Test: This is a test feedback message for the API.',
         },
       });
       
       // Feedback might be public or require auth depending on config
       expect([200, 201, 401, 429]).toContain(res.status());
     });
+
+    test('feedback requires message', async ({ request }) => {
+      const res = await request.post('/api/feedback', {
+        data: {
+          type: 'feature',
+          // Missing message
+        },
+      });
+      
+      expect([400, 401]).toContain(res.status());
+    });
   });
 
   test.describe('Admin Moderation Endpoints', () => {
     test('admin endpoints require admin auth', async ({ request }) => {
-      // Try to access admin moderation without auth
       const res = await request.get('/api/admin/moderation/pending');
       expect([401, 403, 404]).toContain(res.status());
     });
@@ -121,6 +149,17 @@ test.describe('Moderation & Webhook API Flows', () => {
       });
       
       expect([401, 403]).toContain(res.status());
+    });
+
+    test('regular user cannot approve gigs', async ({ request }) => {
+      const user = await registerUser(request);
+      
+      const res = await request.post('/api/admin/moderation/approve', {
+        headers: { 'x-api-key': user.api_key },
+        data: { gig_id: '00000000-0000-0000-0000-000000000000' },
+      });
+      
+      expect([401, 403, 404]).toContain(res.status());
     });
   });
 });

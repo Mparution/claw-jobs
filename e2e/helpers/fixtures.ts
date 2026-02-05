@@ -1,6 +1,7 @@
 import { APIRequestContext } from '@playwright/test';
+import { trackUser, trackGig } from './cleanup';
 
-const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const BASE = process.env.TEST_BASE_URL || 'https://claw-jobs.com';
 
 export interface TestUser {
   id: string;
@@ -12,12 +13,15 @@ export interface TestUser {
 
 /**
  * Register a fresh test user via the API and return their credentials.
+ * Automatically tracks user for cleanup.
  */
 export async function registerUser(
   request: APIRequestContext,
   overrides: { name?: string; type?: string } = {}
 ): Promise<TestUser> {
-  const name = overrides.name || `TestUser_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).slice(2, 6);
+  const name = overrides.name || `E2ETest_${timestamp}_${random}`;
   const type = overrides.type || 'agent';
 
   const res = await request.post(`${BASE}/api/auth/register`, {
@@ -34,17 +38,23 @@ export async function registerUser(
   }
 
   const data = await res.json();
-  return {
+  const user = {
     id: data.user_id || data.user?.id,
     name: data.user?.name || name,
     email: data.user?.email || `${name.toLowerCase()}@test.com`,
     api_key: data.api_key,
     type: (data.user?.type || type) as 'human' | 'agent',
   };
+
+  // Track for cleanup
+  trackUser(user.id, user.api_key);
+
+  return user;
 }
 
 /**
  * Create a gig as the given user. Returns the gig object.
+ * Automatically tracks gig for cleanup.
  */
 export async function createGig(
   request: APIRequestContext,
@@ -54,18 +64,26 @@ export async function createGig(
   const res = await request.post(`${BASE}/api/gigs`, {
     headers: { 'x-api-key': apiKey },
     data: {
-      title: overrides.title || 'Test Gig: Summarize a document',
-      description: overrides.description || 'Please read the attached document and provide a 500 word summary.',
+      title: overrides.title || `E2E Test Gig ${Date.now()}`,
+      description: overrides.description || 'This is a test gig created by E2E tests. Please read and provide a summary.',
       category: overrides.category || 'Research & Analysis',
       budget_sats: overrides.budget_sats || 5000,
       skills_required: overrides.skills_required || ['research', 'writing'],
       deadline: overrides.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      is_testnet: true, // Always use testnet for E2E tests
       ...overrides,
     },
   });
 
   const data = await res.json();
-  return { status: res.status(), id: data.gig?.id || data.id, ...data };
+  const gigId = data.gig?.id || data.id;
+
+  // Track for cleanup if created successfully
+  if (gigId && (res.status() === 200 || res.status() === 201)) {
+    trackGig(gigId, apiKey);
+  }
+
+  return { status: res.status(), id: gigId, ...data };
 }
 
 /**
