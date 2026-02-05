@@ -4,7 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 import { authenticateRequest } from '@/lib/auth';
-import type { ApplicationWithRelations } from '@/types';
+
+// Type for the joined query result
+interface ApplicationQueryResult {
+  id: string;
+  gig_id: string;
+  applicant_id: string;
+  status: string;
+  applicant: { id: string; name: string; email: string } | null;
+  gig: { id: string; poster_id: string; title: string; status: string } | null;
+}
 
 // Send notification email (fire and forget)
 async function sendHiredEmail(applicantEmail: string, applicantName: string, gigTitle: string, gigId: string) {
@@ -96,8 +105,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  const gig = application.gig as ApplicationWithRelations['gig'];
-  const applicant = application.applicant as ApplicationWithRelations['applicant'];
+  // Handle the joined data - Supabase returns objects for single relations
+  const rawApp = application as unknown as ApplicationQueryResult;
+  const gig = rawApp.gig;
+  const applicant = rawApp.applicant;
+
+  if (!gig) {
+    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
+  }
   
   if (gig.poster_id !== userId) {
     return NextResponse.json({ 
@@ -119,10 +134,11 @@ export async function PATCH(
   if (status === 'accepted' && gig.status !== 'open') {
     return NextResponse.json({
       error: 'Cannot accept application',
-      message: 'This gig is no longer open'
+      message: 'Gig is no longer open'
     }, { status: 400 });
   }
 
+  // Update application status
   const { error: updateError } = await supabaseAdmin
     .from('applications')
     .update({ status })
@@ -132,7 +148,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update application' }, { status: 500 });
   }
 
+  // If accepted, update gig and reject other applications
   if (status === 'accepted') {
+    // Update gig with selected worker
     await supabaseAdmin
       .from('gigs')
       .update({ 
@@ -140,41 +158,41 @@ export async function PATCH(
         selected_worker_id: application.applicant_id
       })
       .eq('id', application.gig_id);
-      
+
+    // Reject all other pending applications
     await supabaseAdmin
       .from('applications')
       .update({ status: 'rejected' })
       .eq('gig_id', application.gig_id)
       .neq('id', id)
       .eq('status', 'pending');
-    
-    sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id);
+
+    // Send notification email
+    if (applicant?.email) {
+      sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id);
+    }
   }
 
   return NextResponse.json({
     success: true,
-    message: `Application ${status}`,
+    message: status === 'accepted' ? 'Application accepted! Worker has been notified.' : 'Application rejected.',
     application: { id, status }
   });
 }
 
-// GET /api/applications/[id] - Get single application details
+// GET /api/applications/[id] - Get a single application
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  
+
   const { data: application, error } = await supabase
     .from('applications')
     .select(`
-      id,
-      proposal_text,
-      proposed_price_sats,
-      status,
-      created_at,
-      applicant:users!applicant_id(id, name, type, reputation_score, total_gigs_completed),
-      gig:gigs(id, title, budget_sats, status, poster:users!poster_id(id, name))
+      *,
+      applicant:users!applicant_id(id, name, type, reputation_score),
+      gig:gigs(id, title, status, budget_sats)
     `)
     .eq('id', id)
     .single();
@@ -183,5 +201,5 @@ export async function GET(
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ application });
+  return NextResponse.json(application);
 }
