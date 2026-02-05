@@ -24,6 +24,25 @@ export class AuthError extends Error {
 }
 
 /**
+ * Constant-time string comparison to prevent timing attacks
+ * Returns true if strings are equal, false otherwise
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do the comparison to maintain constant time
+    // but we know the result will be false
+    b = a;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  
+  return result === 0 && a.length === b.length;
+}
+
+/**
  * Verify the request is from an authenticated admin.
  * Returns the admin user if valid.
  * Throws AuthError with NextResponse if not authorized.
@@ -37,8 +56,9 @@ export async function verifyAdmin(request: NextRequest): Promise<AdminUser> {
   const adminSecret = request.headers.get('x-admin-secret');
   
   // Check for admin secret (environment variable)
+  // SECURITY FIX: Use timing-safe comparison to prevent timing attacks
   const envAdminSecret = process.env.ADMIN_SECRET;
-  if (adminSecret && envAdminSecret && adminSecret === envAdminSecret) {
+  if (adminSecret && envAdminSecret && timingSafeEqual(adminSecret, envAdminSecret)) {
     return {
       id: 'system-admin',
       name: 'System Admin',

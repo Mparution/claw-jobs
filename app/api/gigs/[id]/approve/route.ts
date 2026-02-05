@@ -2,7 +2,8 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 
 // Send payment notification email
@@ -66,13 +67,32 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // ===========================================
+  // SECURITY FIX: Use proper API key authentication
+  // instead of trusting client-provided poster_id
+  // ===========================================
+  const auth = await authenticateRequest(request);
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: auth.error || 'Authentication required',
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
+  }
+
+  const authenticatedUserId = auth.user.id;
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { deliverable_id, poster_id } = body as { deliverable_id?: string; poster_id?: string };
+  const { deliverable_id } = body as { deliverable_id?: string };
+
+  if (!deliverable_id) {
+    return NextResponse.json({ error: 'deliverable_id is required' }, { status: 400 });
+  }
   
   const { data: gig, error: gigError } = await supabase
     .from('gigs')
@@ -80,34 +100,52 @@ export async function POST(
     .eq('id', params.id)
     .single();
   
-  if (gigError || !gig || gig.poster_id !== poster_id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  if (gigError || !gig) {
+    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
+  }
+
+  // SECURITY: Verify authenticated user is the gig poster
+  if (gig.poster_id !== authenticatedUserId) {
+    return NextResponse.json({ 
+      error: 'Unauthorized',
+      message: 'Only the gig poster can approve deliverables'
+    }, { status: 403 });
   }
   
   const { data: deliverable, error: delError } = await supabase
     .from('deliverables')
     .select()
     .eq('id', deliverable_id)
+    .eq('gig_id', params.id) // Ensure deliverable belongs to this gig
     .single();
   
   if (delError || !deliverable) {
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
   }
+
+  // Verify deliverable is pending
+  if (deliverable.status !== 'pending') {
+    return NextResponse.json({ 
+      error: 'Invalid deliverable status',
+      message: `Deliverable is "${deliverable.status}", must be "pending"`
+    }, { status: 400 });
+  }
   
   const platformFee = Math.floor(gig.budget_sats * 0.01);
   const workerAmount = gig.budget_sats - platformFee;
   
-  await supabase
+  // Use supabaseAdmin for updates to bypass RLS
+  await supabaseAdmin
     .from('deliverables')
     .update({ status: 'approved' })
     .eq('id', deliverable_id);
   
-  await supabase
+  await supabaseAdmin
     .from('gigs')
     .update({ status: 'completed' })
     .eq('id', params.id);
   
-  await supabase
+  await supabaseAdmin
     .from('lightning_transactions')
     .insert({
       user_id: gig.selected_worker_id,
@@ -125,6 +163,7 @@ export async function POST(
   
   return NextResponse.json({
     success: true,
+    message: 'Deliverable approved and payment processed',
     worker_received: workerAmount,
     platform_fee: platformFee
   });

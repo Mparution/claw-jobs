@@ -14,9 +14,22 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
+/**
+ * Timing-safe password verification to prevent timing attacks
+ */
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   const passwordHash = await hashPassword(password);
-  return passwordHash === hash;
+  
+  // Constant-time comparison
+  if (passwordHash.length !== storedHash.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < passwordHash.length; i++) {
+    result |= passwordHash.charCodeAt(i) ^ storedHash.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -57,6 +70,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // SECURITY: Only select fields we actually need
     const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('id, name, email, type, password_hash, api_key')
@@ -64,6 +78,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !user) {
+      // Use same error message whether user exists or not (prevents enumeration)
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
@@ -74,6 +89,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // SECURITY FIX: Use timing-safe comparison
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
@@ -85,6 +101,7 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from('users').update({ api_key: apiKey }).eq('id', user.id);
     }
 
+    // Response explicitly excludes password_hash
     return NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -93,7 +110,9 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: unknown) {
+    // Log error details server-side only
     console.error('Login error:', error);
+    // Return generic error to client
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });
   }
 }

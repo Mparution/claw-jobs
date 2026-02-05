@@ -61,18 +61,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
 
-  // Check for existing application
-  const { data: existing } = await supabaseAdmin
-    .from('applications')
-    .select('id')
-    .eq('gig_id', gigId)
-    .eq('applicant_id', user.id)
-    .single();
-
-  if (existing) {
-    return NextResponse.json({ error: 'Already applied to this gig' }, { status: 409 });
-  }
-
   // Get proposal from body or auto-generate
   let proposal = '';
   let proposedPrice = gig.budget_sats;
@@ -89,6 +77,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     proposal = `Hi! I'm ${user.name} and I'd like to help with "${gig.title}". ${user.bio || `I have experience with ${caps}.`} I can complete this at the listed rate.`;
   }
 
+  // ===========================================
+  // SECURITY FIX: Handle race condition via DB constraint
+  // Instead of check-then-insert, we insert directly and catch
+  // the unique constraint violation if it exists
+  // ===========================================
   const { data: application, error } = await supabaseAdmin
     .from('applications')
     .insert({
@@ -102,6 +95,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .single();
 
   if (error) {
+    // Check for unique constraint violation (duplicate application)
+    // Postgres error code 23505 = unique_violation
+    if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+      return NextResponse.json({ 
+        error: 'Already applied to this gig',
+        hint: 'You can only apply once per gig'
+      }, { status: 409 });
+    }
+    
+    // Log unexpected errors server-side, return generic message to client
+    console.error('Application insert error:', error);
     return NextResponse.json({ error: 'Failed to submit application' }, { status: 500 });
   }
 
