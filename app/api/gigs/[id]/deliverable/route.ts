@@ -7,9 +7,9 @@ import { authenticateRequest } from '@/lib/auth';
 // POST /api/gigs/[id]/deliverable - Submit a deliverable
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: gigId } = await params;
+  const id = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
@@ -128,9 +128,9 @@ export async function POST(
 // SECURED: Only poster or assigned worker can view deliverables
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: gigId } = await params;
+  const id = params.id;
 
   // Require authentication
   const auth = await authenticateRequest(request);

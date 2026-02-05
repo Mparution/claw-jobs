@@ -16,9 +16,9 @@ interface DeliverableQueryResult {
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
+  const id = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
@@ -157,9 +157,9 @@ export async function PATCH(
 // SECURED: Only poster or worker can view
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
+  const id = params.id;
 
   // Require authentication
   const auth = await authenticateRequest(request);
