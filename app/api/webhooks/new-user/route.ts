@@ -3,14 +3,19 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { SENDER_FROM } from '@/lib/constants';
 
-const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET || 'clawjobs_webhook_2f8k9x4m7pqr3n6v';
-
 /**
  * Webhook endpoint for new user registrations from Supabase
  * Sends welcome emails to new users
  */
 export async function POST(request: NextRequest) {
-  // Verify webhook secret
+  // Verify webhook secret (must be set in environment)
+  const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET;
+  
+  if (!WEBHOOK_SECRET) {
+    console.error('Webhook: SUPABASE_WEBHOOK_SECRET not configured');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
+
   const providedSecret = request.headers.get('x-webhook-secret');
   
   if (!providedSecret || providedSecret !== WEBHOOK_SECRET) {
