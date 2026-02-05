@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from './supabase';
 
 // Admin emails - in production, use a database role column
-const ADMIN_EMAILS = [
+export const ADMIN_EMAILS = [
   'martin.pauroud@outlook.com', // Wolfy
 ];
 

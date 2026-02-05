@@ -1,14 +1,11 @@
 import { cookies } from 'next/headers';
+import { ADMIN_EMAILS } from '@/lib/admin-auth';
 import { createServerClient } from '@supabase/ssr';
 import { redirect } from 'next/navigation';
 import AdminDashboard from './AdminDashboard';
 
 export const runtime = 'edge';
 
-// Admin emails - in production, use a database role column instead
-const ADMIN_EMAILS = [
-  'martin.pauroud@outlook.com', // Wolfy
-];
 
 function createSupabaseServer() {
   const cookieStore = cookies();
