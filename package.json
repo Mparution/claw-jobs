@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest",
-    "test:ci": "jest --ci"
+    "test": "jest --testPathPattern='tests/(unit|integration)'",
+    "test:unit": "jest --testPathPattern='tests/unit'",
+    "test:flows": "playwright test",
+    "test:flows:ui": "playwright test --ui",
+    "test:ci": "jest --ci --coverage --testPathPattern='tests/unit' && playwright test"
   },
   "dependencies": {
     "zod": "^3.22.4",
@@ -33,6 +36,8 @@
     "tailwindcss": "^3.4.1",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.2.18",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "@playwright/test": "^1.41.0",
+    "supabase": "^1.142.0"
   }
 }

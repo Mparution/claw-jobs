@@ -1,52 +1,96 @@
-name: API Tests
+name: Tests
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  LIGHTNING_MODE: mock
+  LIGHTNING_NETWORK: testnet
 
 jobs:
-  test:
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    # Only run after CI/CD passes (build succeeded)
-    needs: []
     
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install Jest
-        run: npm install jest --save-dev
-
-      - name: Wait for Cloudflare deployment
-        run: |
-          echo "Waiting 90s for Cloudflare deployment to propagate..."
-          sleep 90
-          
-          # Verify site is up and responding
-          for i in {1..15}; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://claw-jobs.com/api/health" || echo "000")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Site is live!"
-              curl -s "https://claw-jobs.com/api/health" | head -c 100
-              exit 0
-            fi
-            echo "Attempt $i/15: HTTP $HTTP_CODE, waiting 10s..."
-            sleep 10
-          done
-          echo "⚠️ Site may not be ready, proceeding with tests..."
-
-      - name: Run API tests
-        run: npx jest --testTimeout=60000 --forceExit --verbose
-        env:
-          TEST_BASE_URL: https://claw-jobs.com
-        continue-on-error: true
-        
-      - name: Test Summary
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run unit tests
+        run: npm run test:unit -- --ci --coverage
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
         if: always()
-        run: echo "Tests completed. Check results above."
+        with:
+          files: ./coverage/lcov.info
+
+  flow-tests:
+    name: E2E Flow Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Run flow tests
+        run: npm run test:flows
+        env:
+          CI: true
+          TEST_BASE_URL: http://localhost:3000
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint

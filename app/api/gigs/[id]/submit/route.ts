@@ -34,7 +34,7 @@ export async function POST(
     return NextResponse.json({ error: 'Missing required field: content' }, { status: 400 });
   }
   
-  const { data: gig, error: gigError } = await supabase
+  const { data: gig, error: gigError } = await supabaseAdmin
     .from('gigs')
     .select()
     .eq('id', params.id)
