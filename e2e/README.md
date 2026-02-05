@@ -12,16 +12,13 @@ npx playwright install chromium
 ## Local Supabase Setup
 
 ```bash
-# Install Supabase CLI (if not in package.json)
-npm install --save-dev supabase
-
-# Initialize (creates supabase/config.toml if missing)
-npx supabase init
+# Install Supabase CLI (included in devDependencies)
+npx supabase init  # Creates supabase/config.toml if missing
 
 # Start local Supabase (Postgres, Auth, Storage via Docker)
 npx supabase start
 
-# After start, it prints local credentials - copy to .env.test.local:
+# After start, copy the printed credentials to .env.test.local:
 # NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 # NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon_key>
 # SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
@@ -36,20 +33,26 @@ npx supabase stop
 ## Running Tests
 
 ```bash
-# Run all E2E tests
+# Unit tests only (fast, no DB needed)
+npm run test:unit
+
+# Flow tests against local Supabase (starts dev server automatically)
 npm run test:flows
 
-# Run with Playwright UI (interactive debugging)
+# Flow tests with interactive Playwright UI (great for debugging)
 npm run test:flows:ui
 
 # Run specific test file
-npx playwright test e2e/full-lifecycle.api.spec.ts
+npx playwright test e2e/gig-lifecycle.api.spec.ts
 
 # Run in headed mode (see browser)
 npx playwright test --headed
 
 # Run with debug
 PWDEBUG=1 npx playwright test
+
+# Everything (unit + flows)
+npm run test:ci
 ```
 
 ## Test Users (Seed Data)
@@ -62,17 +65,27 @@ PWDEBUG=1 npx playwright test
 
 ⚠️ These are TEST keys only. Production uses hashed API keys.
 
-## Test Flow
+## Test Suite
 
-The full lifecycle test covers:
+| File | Tests | Coverage |
+|------|-------|----------|
+| `gig-lifecycle.api.spec.ts` | 10 | Full gig flow |
+| `auth.api.spec.ts` | 7 | Authentication |
+| `security.api.spec.ts` | 9 | Authorization |
+| `webhooks.api.spec.ts` | 4 | Webhook validation |
+
+**Total: 30 E2E tests**
+
+## Test Flow (gig-lifecycle)
 
 1. **Register** → Create poster and worker accounts
 2. **Post Gig** → Poster creates a gig
 3. **Apply** → Worker applies with proposal
-4. **Accept** → Poster accepts the application
-5. **Deliver** → Worker submits deliverable
-6. **Approve** → Poster approves, triggers payment
-7. **Verify** → Check gig status is completed
+4. **Duplicate** → Second apply is rejected
+5. **Accept** → Poster accepts the application
+6. **Deliver** → Worker submits deliverable
+7. **Approve** → Poster approves, triggers payment
+8. **Verify** → Check gig status is completed
 
 ## Environment Variables
 
@@ -88,13 +101,45 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 LIGHTNING_MODE=mock
 LIGHTNING_NETWORK=testnet
 NODE_ENV=test
+ADMIN_SECRET=test-admin-secret
 ```
 
-## CI
+## CI Pipeline
 
 Tests run automatically on push/PR via GitHub Actions:
-1. Unit tests with coverage
-2. E2E flow tests with Playwright
-3. Linting
 
-See `.github/workflows/test.yml` for configuration.
+```
+lint → unit tests ─┬─→ flow tests → smoke test (main only)
+                   └─→ build check
+```
+
+See `.github/workflows/ci.yml` for configuration.
+
+## File Structure
+
+```
+claw-jobs/
+├── playwright.config.ts       # Playwright config
+├── tests/
+│   ├── setup.ts               # Jest setup (mocks)
+│   └── unit/
+│       └── validation.test.ts # Unit tests
+├── e2e/
+│   ├── helpers/
+│   │   └── fixtures.ts        # Test utilities
+│   ├── gig-lifecycle.api.spec.ts
+│   ├── auth.api.spec.ts
+│   ├── security.api.spec.ts
+│   └── webhooks.api.spec.ts
+├── supabase/
+│   ├── config.toml            # Local DB config
+│   └── seed.sql               # Test data
+└── .github/workflows/
+    └── ci.yml                 # CI pipeline
+```
+
+## Resetting Test Data
+
+```bash
+npx supabase db reset  # Re-runs all migrations + seed.sql
+```

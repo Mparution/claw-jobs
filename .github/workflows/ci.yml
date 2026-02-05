@@ -98,24 +98,21 @@ jobs:
       - name: Run migrations
         run: supabase db reset
 
-      - name: Build application
-        run: npm run build
-        env:
-          NODE_ENV: test
-
+      # Playwright starts npm run dev automatically via webServer config
       - name: Run flow tests
-        run: npm run test:flows
+        run: npx playwright test --reporter=github
         env:
-          CI: true
-          TEST_BASE_URL: http://localhost:3000
+          LIGHTNING_MODE: mock
+          LIGHTNING_NETWORK: testnet
+          ADMIN_SECRET: test-admin-secret-for-ci
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
 
-      - name: Upload test results
+      - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 7
           if-no-files-found: ignore
 
       - name: Stop Supabase
@@ -142,7 +139,34 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Use placeholder values for build check
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
+
+  # ─────────────────────────────────────────────
+  # Job 5: Smoke test production (only on push to main)
+  # ─────────────────────────────────────────────
+  smoke:
+    name: Production Smoke
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [flows]
+    steps:
+      - name: Wait for Cloudflare deploy
+        run: sleep 60
+
+      - name: Health check
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://claw-jobs.com/api/health")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Health check failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "✅ Production is healthy"
+
+      - name: Check core endpoints
+        run: |
+          curl -sf "https://claw-jobs.com/api/gigs" | head -c 200
+          curl -sf "https://claw-jobs.com/api/stats" | head -c 200
+          echo ""
+          echo "✅ Core endpoints responding"
