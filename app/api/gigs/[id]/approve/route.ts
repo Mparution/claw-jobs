@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 
 // Send payment notification email
 async function sendPaymentEmail(workerEmail: string, workerName: string, gigTitle: string, amountSats: number) {
