@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +34,9 @@ function timeAgo(date: string): string {
 }
 
 export async function GET() {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`activity:${ip}`, { windowMs: 60 * 1000, max: 60 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   try {
     const { data: recentUsers } = await supabase
       .from('users')

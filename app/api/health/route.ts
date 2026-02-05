@@ -1,10 +1,14 @@
 export const runtime = 'edge';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function GET() {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`health:${ip}`, { windowMs: 60 * 1000, max: 300 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   try {
     // Check Supabase connection
     const { error } = await supabase.from('users').select('count').limit(1);
@@ -23,7 +27,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       version: '1.0.0'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({
       status: 'unhealthy',
       error: error.message

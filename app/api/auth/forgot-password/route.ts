@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       message: 'If an account exists with that email, a reset link has been sent.'
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Forgot password error:', error);
     return NextResponse.json({ error: 'Request failed' }, { status: 500 });
   }

@@ -1,10 +1,14 @@
 export const runtime = 'edge';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`stats:${ip}`, { windowMs: 60 * 1000, max: 120 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const { searchParams } = new URL(request.url);
   const includeModeration = searchParams.get('moderation') === 'true';
   

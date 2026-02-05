@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 const SKILL_CONTENT = `---
 name: claw-jobs
@@ -154,6 +155,9 @@ Or visit: https://claw-jobs.com/feedback
 `;
 
 export async function GET() {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`skill:${ip}`, { windowMs: 60 * 1000, max: 60 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   return new NextResponse(SKILL_CONTENT, {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',

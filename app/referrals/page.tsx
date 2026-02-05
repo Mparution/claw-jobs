@@ -1,11 +1,35 @@
 import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import Link from 'next/link';
 
 export const runtime = 'edge';
 
+function createSupabaseServer() {
+  const cookieStore = cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Server Component - can't set cookies
+          }
+        },
+      },
+    }
+  );
+}
+
 async function getReferralData(userId: string) {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createSupabaseServer();
   
   const [userResult, referralsResult, rewardsResult] = await Promise.all([
     supabase.from('users').select('referral_code, referral_earnings_sats').eq('id', userId).single(),
@@ -24,109 +48,60 @@ async function getReferralData(userId: string) {
 }
 
 export default async function ReferralsPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createSupabaseServer();
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Sign in to view referrals</h1>
-          <Link href="/signin" className="text-orange-500 hover:underline">Sign In</Link>
+          <h1 className="text-2xl font-bold mb-4">Sign in to view referrals</h1>
+          <Link href="/signin" className="text-orange-500 hover:underline">
+            Sign In →
+          </Link>
         </div>
       </div>
     );
   }
 
   const data = await getReferralData(session.user.id);
-  const referralLink = `https://claw-jobs.com/signup?ref=${data.referralCode}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 py-12">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-4xl font-bold text-white mb-2">Referral Program</h1>
-        <p className="text-gray-400 mb-8">Invite friends and earn sats when they use Claw Jobs!</p>
-
-        {/* Referral Link Card */}
-        <div className="bg-white/10 backdrop-blur rounded-xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">Your Referral Link</h2>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={referralLink}
-              readOnly
-              className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg font-mono text-sm"
-            />
-            <button
-              onClick={() => navigator.clipboard.writeText(referralLink)}
-              className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 transition"
-            >
-              Copy
-            </button>
-          </div>
-          <p className="text-gray-400 text-sm mt-3">
-            Share this link. When someone signs up and completes their first gig, you both earn sats!
-          </p>
+    <div className="max-w-4xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-bold mb-8">Your Referrals</h1>
+      
+      <div className="bg-white border rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Your Referral Code</h2>
+        <div className="bg-gray-100 p-4 rounded font-mono text-lg">
+          {data.referralCode || 'No referral code yet'}
         </div>
+        <p className="text-sm text-gray-500 mt-2">
+          Share this code to earn rewards when new users sign up!
+        </p>
+      </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-center">
-            <div className="text-3xl font-bold text-orange-500">{data.referrals.length}</div>
-            <div className="text-gray-400">Total Referrals</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-center">
-            <div className="text-3xl font-bold text-green-400">{data.totalEarnings.toLocaleString()}</div>
-            <div className="text-gray-400">Sats Earned</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur rounded-xl p-6 text-center">
-            <div className="text-3xl font-bold text-purple-400">{data.rewards.length}</div>
-            <div className="text-gray-400">Rewards Received</div>
-          </div>
+      <div className="bg-white border rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Total Earnings</h2>
+        <div className="text-3xl font-bold text-orange-500">
+          {data.totalEarnings.toLocaleString()} sats
         </div>
+      </div>
 
-        {/* How it works */}
-        <div className="bg-white/10 backdrop-blur rounded-xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-4xl mb-3">🔗</div>
-              <h3 className="font-semibold text-white mb-2">1. Share Your Link</h3>
-              <p className="text-gray-400 text-sm">Send your referral link to other agents or humans</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl mb-3">👥</div>
-              <h3 className="font-semibold text-white mb-2">2. They Sign Up</h3>
-              <p className="text-gray-400 text-sm">When they create an account using your link</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl mb-3">⚡</div>
-              <h3 className="font-semibold text-white mb-2">3. Earn Sats</h3>
-              <p className="text-gray-400 text-sm">Get 100 sats when they complete their first gig!</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Referrals List */}
-        {data.referrals.length > 0 && (
-          <div className="bg-white/10 backdrop-blur rounded-xl p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Your Referrals</h2>
-            <div className="space-y-3">
-              {data.referrals.map((ref: { id: string; name: string; type: string; created_at: string }) => (
-                <div key={ref.id} className="flex items-center justify-between py-3 border-b border-gray-700 last:border-0">
-                  <div>
-                    <span className="text-white font-medium">{ref.name}</span>
-                    <span className="ml-2 text-xs px-2 py-1 rounded bg-gray-700 text-gray-300">
-                      {ref.type}
-                    </span>
-                  </div>
-                  <span className="text-gray-400 text-sm">
-                    {new Date(ref.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Referred Users ({data.referrals.length})</h2>
+        {data.referrals.length === 0 ? (
+          <p className="text-gray-500">No referrals yet. Share your code to get started!</p>
+        ) : (
+          <ul className="space-y-2">
+            {data.referrals.map((ref: { id: string; name: string; type: string; created_at: string }) => (
+              <li key={ref.id} className="flex justify-between items-center py-2 border-b">
+                <span>{ref.name} ({ref.type})</span>
+                <span className="text-sm text-gray-500">
+                  {new Date(ref.created_at).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

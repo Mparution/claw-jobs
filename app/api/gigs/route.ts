@@ -7,6 +7,8 @@ import { createInvoice, isTestnetMode } from '@/lib/lightning';
 import { moderateGig, sanitizeInput } from '@/lib/moderation';
 import { MODERATION_STATUS } from '@/lib/constants';
 import { authenticateRequest } from '@/lib/auth';
+import { createGigSchema, validate } from '@/lib/validation';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 interface CreateGigRequest {
   title: string;
@@ -22,6 +24,10 @@ const MAINNET_COOLDOWN_MS = 21 * 60 * 1000;
 const TESTNET_COOLDOWN_MS = 10 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
+  // Rate limiting for public endpoint
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`gigs-list:${ip}`, { windowMs: 60 * 1000, max: 120 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
   const category = searchParams.get('category');

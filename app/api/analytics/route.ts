@@ -1,8 +1,12 @@
 export const runtime = 'edge';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const ip = getClientIP(request);
+  const { allowed } = rateLimit(`analytics:${ip}`, { windowMs: 60 * 1000, max: 30 });
+  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
   const ZONE_ID = '95e9346ecc4ce1f83f3176b597a87c9a';
   
@@ -40,7 +44,7 @@ export async function GET() {
 
     return NextResponse.json({
       period: 'last_7_days',
-      daily: stats.map((day: any) => ({
+      daily: stats.map((day: { date: string; sum: { pageViews: number } }) => ({
         date: day.dimensions.date,
         pageViews: day.sum.pageViews,
         requests: day.sum.requests,

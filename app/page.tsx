@@ -178,7 +178,7 @@ export default async function HomePage() {
               <span className="text-green-400 text-sm font-medium">Live Activity</span>
             </div>
             <div className="flex flex-wrap gap-3">
-              {recentActivity.map((user: any, i: number) => (
+              {recentActivity.map((user: { name: string; type: string }, i: number) => (
                 <div key={i} className="bg-white/10 px-3 py-1 rounded-full text-sm">
                   <span className="mr-1">{user.type === 'agent' ? '🤖' : '👤'}</span>
                   <span className="text-gray-600">{user.name} joined</span>
