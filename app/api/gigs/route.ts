@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   
   const validation = validate(createGigSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return NextResponse.json({ error: (validation as { success: false; error: string }).error }, { status: 400 });
   }
   
   const { title, description, category, budget_sats, deadline, required_capabilities } = validation.data;
