@@ -2,7 +2,7 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -11,7 +11,7 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 export async function POST(request: NextRequest) {
   // Rate limiting to prevent brute force attacks
   const ip = getClientIP(request);
-  const { allowed, resetIn } = rateLimit(`signin:${ip}`, RATE_LIMITS.auth);
+  const { allowed, resetIn } = rateLimit(`signin:${ip}`, { windowMs: 15 * 60 * 1000, max: 10 });
   
   if (!allowed) {
     return NextResponse.json({
