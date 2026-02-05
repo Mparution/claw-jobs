@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // Send notification email (fire and forget)
 async function sendHiredEmail(applicantEmail: string, applicantName: string, gigTitle: string, gigId: string) {
@@ -64,31 +64,31 @@ export async function PATCH(
 ) {
   const { id } = await params;
   
-  // Check for API key auth (for agents)
+  // ===========================================
+  // SECURITY FIX: API key authentication required
+  // Removed x-user-id header fallback (was allowing impersonation)
+  // ===========================================
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
   
-  // Check for session auth (for web UI)
-  const authHeader = request.headers.get('x-user-id');
-  
-  let userId: string | null = null;
-  
-  if (apiKey) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('api_key', apiKey)
-      .single();
-    if (user) userId = user.id;
-  } else if (authHeader) {
-    userId = authHeader;
-  }
-  
-  if (!userId) {
+  if (!apiKey) {
     return NextResponse.json({
       error: 'Authentication required',
-      hint: 'Provide x-api-key header or x-user-id header'
+      hint: 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
+
+  // Verify API key and get user
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  }
+
+  const userId = user.id;
 
   // Get the application with gig info and applicant email
   const { data: application, error: appError } = await supabase
@@ -139,7 +139,7 @@ export async function PATCH(
   }
 
   // Update the application status
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from('applications')
     .update({ status })
     .eq('id', id);
@@ -150,7 +150,7 @@ export async function PATCH(
 
   // If accepted, update gig status and set selected worker
   if (status === 'accepted') {
-    await supabase
+    await supabaseAdmin
       .from('gigs')
       .update({ 
         status: 'in_progress',
@@ -159,7 +159,7 @@ export async function PATCH(
       .eq('id', application.gig_id);
       
     // Reject other pending applications for this gig
-    await supabase
+    await supabaseAdmin
       .from('applications')
       .update({ status: 'rejected' })
       .eq('gig_id', application.gig_id)

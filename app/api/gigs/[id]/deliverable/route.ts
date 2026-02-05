@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // POST /api/gigs/[id]/deliverable - Submit a deliverable
 export async function POST(
@@ -10,26 +10,31 @@ export async function POST(
 ) {
   const { id: gigId } = await params;
   
-  // Auth check
+  // ===========================================
+  // SECURITY FIX: API key authentication required
+  // Removed x-user-id header fallback (was allowing impersonation)
+  // ===========================================
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
-  const userIdHeader = request.headers.get('x-user-id');
   
-  let userId: string | null = null;
-  
-  if (apiKey) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('api_key', apiKey)
-      .single();
-    if (user) userId = user.id;
-  } else if (userIdHeader) {
-    userId = userIdHeader;
+  if (!apiKey) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
   }
-  
-  if (!userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+
+  // Verify API key and get user
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
+
+  const userId = user.id;
 
   // Get the gig
   const { data: gig, error: gigError } = await supabase
@@ -71,7 +76,7 @@ export async function POST(
   }
 
   // Check for existing pending deliverable
-  const { data: existingDeliverable } = await supabase
+  const { data: existingDeliverable } = await supabaseAdmin
     .from('deliverables')
     .select('id, status')
     .eq('gig_id', gigId)
@@ -81,7 +86,7 @@ export async function POST(
 
   if (existingDeliverable) {
     // Update existing pending deliverable
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('deliverables')
       .update({ 
         content, 
@@ -102,7 +107,7 @@ export async function POST(
   }
 
   // Create new deliverable
-  const { data: deliverable, error: createError } = await supabase
+  const { data: deliverable, error: createError } = await supabaseAdmin
     .from('deliverables')
     .insert({
       gig_id: gigId,
@@ -120,7 +125,7 @@ export async function POST(
   }
 
   // Update gig status to pending_review
-  await supabase
+  await supabaseAdmin
     .from('gigs')
     .update({ status: 'pending_review' })
     .eq('id', gigId);

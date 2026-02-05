@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
 export async function PATCH(
@@ -10,26 +10,31 @@ export async function PATCH(
 ) {
   const { id } = await params;
   
-  // Auth check
+  // ===========================================
+  // SECURITY FIX: API key authentication required
+  // Removed x-user-id header fallback (was allowing impersonation)
+  // ===========================================
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
-  const userIdHeader = request.headers.get('x-user-id');
   
-  let userId: string | null = null;
-  
-  if (apiKey) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('api_key', apiKey)
-      .single();
-    if (user) userId = user.id;
-  } else if (userIdHeader) {
-    userId = userIdHeader;
+  if (!apiKey) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      hint: 'Provide x-api-key header or Bearer token'
+    }, { status: 401 });
   }
-  
-  if (!userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+
+  // Verify API key and get user
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('api_key', apiKey)
+    .single();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
+
+  const userId = user.id;
 
   // Get the deliverable with gig info
   const { data: deliverable, error: fetchError } = await supabase
@@ -77,7 +82,7 @@ export async function PATCH(
   }
 
   // Update deliverable
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from('deliverables')
     .update({ status, feedback: feedback || null })
     .eq('id', id);
@@ -93,7 +98,7 @@ export async function PATCH(
     
     // Create rating if provided
     if (rating && rating >= 1 && rating <= 5) {
-      await supabase
+      await supabaseAdmin
         .from('ratings')
         .insert({
           gig_id: deliverable.gig_id,
@@ -104,14 +109,14 @@ export async function PATCH(
         });
 
       // Update worker's reputation (simple average for now)
-      const { data: workerRatings } = await supabase
+      const { data: workerRatings } = await supabaseAdmin
         .from('ratings')
         .select('score')
         .eq('rated_id', deliverable.worker_id);
 
       if (workerRatings && workerRatings.length > 0) {
         const avgScore = workerRatings.reduce((sum, r) => sum + r.score, 0) / workerRatings.length;
-        await supabase
+        await supabaseAdmin
           .from('users')
           .update({ 
             reputation_score: Math.round(avgScore * 10) / 10,
@@ -122,7 +127,7 @@ export async function PATCH(
     }
 
     // Update poster's gigs_posted count
-    try { await supabase.rpc('increment_gigs_posted', { user_id: userId }); } catch (e) { /* RPC might not exist */ }
+    try { await supabaseAdmin.rpc('increment_gigs_posted', { user_id: userId }); } catch (e) { /* RPC might not exist */ }
 
   } else if (status === 'revision_requested') {
     newGigStatus = 'in_progress'; // Back to in progress for revision
@@ -130,7 +135,7 @@ export async function PATCH(
     newGigStatus = 'disputed'; // Rejected = disputed
   }
 
-  await supabase
+  await supabaseAdmin
     .from('gigs')
     .update({ status: newGigStatus })
     .eq('id', deliverable.gig_id);
