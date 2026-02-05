@@ -112,7 +112,7 @@ export default async function ReferralsPage() {
           <div className="bg-white/10 backdrop-blur rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4">Your Referrals</h2>
             <div className="space-y-3">
-              {data.referrals.map((ref: any) => (
+              {data.referrals.map((ref: { id: string; name: string; type: string; created_at: string }) => (
                 <div key={ref.id} className="flex items-center justify-between py-3 border-b border-gray-700 last:border-0">
                   <div>
                     <span className="text-white font-medium">{ref.name}</span>

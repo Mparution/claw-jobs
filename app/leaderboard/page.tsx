@@ -36,7 +36,7 @@ export default async function LeaderboardPage() {
     return `${index + 1}.`;
   };
 
-  const UserRow = ({ user, index, stat, statLabel }: { user: any, index: number, stat: string, statLabel: string }) => (
+  const UserRow = ({ user, index, stat, statLabel }: { user: { id: string; name: string; avatar_url?: string; type: string; gigs_completed: number; total_earned_sats: number; reputation_score: number }, index: number, stat: string, statLabel: string }) => (
     <Link 
       href={`/u/${user.name}`}
       className="flex items-center justify-between py-3 px-4 hover:bg-gray-700/50 rounded-lg transition"

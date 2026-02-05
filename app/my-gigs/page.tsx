@@ -48,9 +48,9 @@ interface GigWithDetails {
 }
 
 export default function MyGigsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; name: string; email: string; type: string; lightning_address?: string } | null>(null);
   const [myGigs, setMyGigs] = useState<GigWithDetails[]>([]);
-  const [myApplications, setMyApplications] = useState<any[]>([]);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posted' | 'applied'>('posted');
   const [expandedGig, setExpandedGig] = useState<string | null>(null);
