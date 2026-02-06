@@ -1,24 +1,16 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { authenticateRequest, requireAuth } from '@/lib/auth';
-
-// Type for the joined query result
-interface DeliverableQueryResult {
-  id: string;
-  gig_id: string;
-  worker_id: string;
-  status: string;
-  gig: { id: string; poster_id: string; title: string; budget_sats: number; status: string } | null;
-}
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
+import type { DeliverableWithRelations } from '@/types';
 
 // PATCH /api/deliverables/[id] - Review a deliverable (approve/reject/revision)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
+  const { id } = await params;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
@@ -33,7 +25,7 @@ export async function PATCH(
   const userId = auth.user.id;
 
   // Get the deliverable with gig info
-  const { data: deliverable, error: fetchError } = await supabaseAdmin
+  const { data: deliverable, error: fetchError } = await supabase
     .from('deliverables')
     .select(`
       id,
@@ -49,13 +41,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
   }
 
-  // Handle joined data with proper typing
-  const rawDeliverable = deliverable as unknown as DeliverableQueryResult;
-  const gig = rawDeliverable.gig;
-
-  if (!gig) {
-    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
-  }
+  const gig = (Array.isArray(deliverable.gig) ? deliverable.gig[0] : deliverable.gig) as DeliverableWithRelations['gig'];
 
   // Check if user is the gig poster
   if (gig.poster_id !== userId) {
@@ -66,10 +52,10 @@ export async function PATCH(
   }
 
   // Check if deliverable is pending
-  if (rawDeliverable.status !== 'pending') {
+  if (deliverable.status !== 'pending') {
     return NextResponse.json({ 
       error: 'Cannot review',
-      message: `Deliverable status is "${rawDeliverable.status}", must be "pending"`
+      message: `Deliverable status is "${deliverable.status}", must be "pending"`
     }, { status: 400 });
   }
 
@@ -103,9 +89,9 @@ export async function PATCH(
       await supabaseAdmin
         .from('ratings')
         .insert({
-          gig_id: rawDeliverable.gig_id,
+          gig_id: deliverable.gig_id,
           rater_id: userId,
-          rated_id: rawDeliverable.worker_id,
+          rated_id: deliverable.worker_id,
           score: rating,
           review_text: review_text || null
         });
@@ -114,7 +100,7 @@ export async function PATCH(
       const { data: workerRatings } = await supabaseAdmin
         .from('ratings')
         .select('score')
-        .eq('rated_id', rawDeliverable.worker_id);
+        .eq('rated_id', deliverable.worker_id);
 
       if (workerRatings && workerRatings.length > 0) {
         const avgScore = workerRatings.reduce((sum, r) => sum + r.score, 0) / workerRatings.length;
@@ -124,7 +110,7 @@ export async function PATCH(
             reputation_score: Math.round(avgScore * 10) / 10,
             total_gigs_completed: workerRatings.length
           })
-          .eq('id', rawDeliverable.worker_id);
+          .eq('id', deliverable.worker_id);
       }
     }
 
@@ -139,7 +125,7 @@ export async function PATCH(
   await supabaseAdmin
     .from('gigs')
     .update({ status: newGigStatus })
-    .eq('id', rawDeliverable.gig_id);
+    .eq('id', deliverable.gig_id);
 
   return NextResponse.json({
     success: true,
@@ -154,26 +140,13 @@ export async function PATCH(
 }
 
 // GET /api/deliverables/[id] - Get single deliverable
-// SECURED: Only poster or worker can view
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
+  const { id } = await params;
 
-  // Require authentication
-  const auth = await authenticateRequest(request);
-  
-  if (!auth.success || !auth.user) {
-    return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
-    }, { status: 401 });
-  }
-
-  const userId = auth.user.id;
-
-  const { data: deliverable, error } = await supabaseAdmin
+  const { data: deliverable, error } = await supabase
     .from('deliverables')
     .select(`
       id,
@@ -182,33 +155,14 @@ export async function GET(
       status,
       feedback,
       submitted_at,
-      worker_id,
       worker:users!worker_id(id, name, type, reputation_score),
-      gig:gigs(id, title, budget_sats, status, poster_id, poster:users!poster_id(id, name))
+      gig:gigs(id, title, budget_sats, status, poster:users!poster_id(id, name))
     `)
     .eq('id', id)
     .single();
 
   if (error || !deliverable) {
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
-  }
-
-  // Type assertion for the joined data
-  const rawDeliverable = deliverable as unknown as {
-    id: string;
-    worker_id: string;
-    gig: { poster_id: string } | null;
-  };
-
-  // Only allow poster or worker to view
-  const posterId = rawDeliverable.gig?.poster_id;
-  const workerId = rawDeliverable.worker_id;
-
-  if (userId !== posterId && userId !== workerId) {
-    return NextResponse.json({ 
-      error: 'Unauthorized',
-      message: 'Only the gig poster or worker can view this deliverable'
-    }, { status: 403 });
   }
 
   return NextResponse.json({ deliverable });

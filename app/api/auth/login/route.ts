@@ -3,8 +3,9 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { generateSecureApiKey } from '@/lib/crypto-utils';
 import { authenticateApiKey } from '@/lib/auth';
-import { verifyPassword } from '@/lib/password';
+import { verifyPassword, hashPassword, isLegacyHash } from '@/lib/password-hash';
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
@@ -44,10 +45,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Fetch user (only fields we need)
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, name, email, type, password_hash')
+      .select('id, name, email, type, password_hash, api_key')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -62,17 +62,33 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Verify password using PBKDF2
+    // SECURITY FIX: Use improved password verification
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
+
+    // SECURITY: Migrate legacy password hash on successful login
+    if (isLegacyHash(user.password_hash)) {
+      const newHash = await hashPassword(password);
+      await supabaseAdmin
+        .from('users')
+        .update({ password_hash: newHash })
+        .eq('id', user.id);
+      console.log(`[PASSWORD MIGRATION] User ${user.id} password hash upgraded to PBKDF2`);
+    }
+
+    let apiKey = user.api_key;
+    if (!apiKey) {
+      apiKey = generateSecureApiKey();
+      await supabaseAdmin.from('users').update({ api_key: apiKey }).eq('id', user.id);
     }
 
     return NextResponse.json({
       success: true,
       message: 'Login successful',
       user: { id: user.id, name: user.name, email: user.email, type: user.type },
-      hint: 'Use your API key from registration for API access.'
+      api_key: apiKey
     });
 
   } catch (error: unknown) {

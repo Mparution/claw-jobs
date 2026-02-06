@@ -2,9 +2,9 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
-import { rateLimit, getClientIP } from '@/lib/rate-limit';
+import { auditLog, getClientIPFromRequest } from '@/lib/audit-log';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
 
 // Send payment notification email
@@ -68,14 +68,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Rate limiting
-  const ip = getClientIP(request);
-  const { allowed } = rateLimit(`approve:${ip}`, { windowMs: 60 * 1000, max: 30 });
-  if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
-  // ===========================================
-  // SECURITY FIX: Use proper API key authentication
-  // instead of trusting client-provided poster_id
-  // ===========================================
+  // SECURITY FIX: Require API key authentication
   const auth = await authenticateRequest(request);
   
   if (!auth.success || !auth.user) {
@@ -96,10 +89,10 @@ export async function POST(
   const { deliverable_id } = body as { deliverable_id?: string };
 
   if (!deliverable_id) {
-    return NextResponse.json({ error: 'deliverable_id is required' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing required field: deliverable_id' }, { status: 400 });
   }
   
-  const { data: gig, error: gigError } = await supabaseAdmin
+  const { data: gig, error: gigError } = await supabase
     .from('gigs')
     .select('*, selected_worker:users!selected_worker_id(*)')
     .eq('id', params.id)
@@ -109,7 +102,8 @@ export async function POST(
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
 
-  // SECURITY: Verify authenticated user is the gig poster
+  // SECURITY FIX: Verify authenticated user is the gig poster
+  // (previously accepted poster_id from request body - anyone could approve!)
   if (gig.poster_id !== authenticatedUserId) {
     return NextResponse.json({ 
       error: 'Unauthorized',
@@ -117,40 +111,43 @@ export async function POST(
     }, { status: 403 });
   }
   
-  const { data: deliverable, error: delError } = await supabaseAdmin
+  const { data: deliverable, error: delError } = await supabase
     .from('deliverables')
     .select()
     .eq('id', deliverable_id)
-    .eq('gig_id', params.id) // Ensure deliverable belongs to this gig
     .single();
   
   if (delError || !deliverable) {
     return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
   }
 
-  // Verify deliverable is pending
+  // Additional check: deliverable must belong to this gig
+  if (deliverable.gig_id !== params.id) {
+    return NextResponse.json({ error: 'Deliverable does not belong to this gig' }, { status: 400 });
+  }
+
+  // Additional check: deliverable must be pending
   if (deliverable.status !== 'pending') {
     return NextResponse.json({ 
-      error: 'Invalid deliverable status',
-      message: `Deliverable is "${deliverable.status}", must be "pending"`
+      error: 'Deliverable cannot be approved',
+      message: `Current status: ${deliverable.status}`
     }, { status: 400 });
   }
   
   const platformFee = Math.floor(gig.budget_sats * 0.01);
   const workerAmount = gig.budget_sats - platformFee;
   
-  // Use supabaseAdmin for updates to bypass RLS
-  await supabaseAdmin
+  await supabase
     .from('deliverables')
     .update({ status: 'approved' })
     .eq('id', deliverable_id);
   
-  await supabaseAdmin
+  await supabase
     .from('gigs')
     .update({ status: 'completed' })
     .eq('id', params.id);
   
-  await supabaseAdmin
+  await supabase
     .from('lightning_transactions')
     .insert({
       user_id: gig.selected_worker_id,
@@ -159,16 +156,32 @@ export async function POST(
       amount_sats: workerAmount,
       status: 'paid'
     });
+
+  // SECURITY: Audit log the approval (payment trigger is sensitive)
+  await auditLog({
+    actor_id: authenticatedUserId,
+    actor_type: 'user',
+    action: 'deliverable.approve',
+    resource_type: 'deliverable',
+    resource_id: deliverable_id,
+    details: {
+      gig_id: params.id,
+      gig_title: gig.title,
+      worker_id: gig.selected_worker_id,
+      worker_amount: workerAmount,
+      platform_fee: platformFee
+    },
+    ip_address: getClientIPFromRequest(request)
+  });
   
   // Send payment notification email
-  const worker = gig.selected_worker as { name: string; email: string } | null;
+  const worker = (Array.isArray(gig.selected_worker) ? gig.selected_worker[0] : gig.selected_worker) as { name: string; email: string } | null;
   if (worker?.email) {
-    sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount).catch(e => console.error('Email send failed:', e));
+    sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount);
   }
   
   return NextResponse.json({
     success: true,
-    message: 'Deliverable approved and payment processed',
     worker_received: workerAmount,
     platform_fee: platformFee
   });

@@ -1,19 +1,10 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { AGENT_EMAIL_DOMAIN, SENDER_FROM } from '@/lib/constants';
-import { authenticateRequest, requireAuth } from '@/lib/auth';
-
-// Type for the joined query result
-interface ApplicationQueryResult {
-  id: string;
-  gig_id: string;
-  applicant_id: string;
-  status: string;
-  applicant: { id: string; name: string; email: string } | null;
-  gig: { id: string; poster_id: string; title: string; status: string } | null;
-}
+import { authenticateRequest } from '@/lib/auth';
+import type { ApplicationWithRelations } from '@/types';
 
 // Send notification email (fire and forget)
 async function sendHiredEmail(applicantEmail: string, applicantName: string, gigTitle: string, gigId: string) {
@@ -71,9 +62,9 @@ async function sendHiredEmail(applicantEmail: string, applicantName: string, gig
 // PATCH /api/applications/[id] - Update application status (accept/reject)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
+  const { id } = await params;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
@@ -88,7 +79,7 @@ export async function PATCH(
   const userId = auth.user.id;
 
   // Get the application with gig info and applicant email
-  const { data: application, error: appError } = await supabaseAdmin
+  const { data: application, error: appError } = await supabase
     .from('applications')
     .select(`
       id,
@@ -105,14 +96,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  // Handle the joined data - Supabase returns objects for single relations
-  const rawApp = application as unknown as ApplicationQueryResult;
-  const gig = rawApp.gig;
-  const applicant = rawApp.applicant;
-
-  if (!gig) {
-    return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
-  }
+  const gig = (Array.isArray(application.gig) ? application.gig[0] : application.gig) as ApplicationWithRelations['gig'];
+  const applicant = (Array.isArray(application.applicant) ? application.applicant[0] : application.applicant) as ApplicationWithRelations['applicant'];
   
   if (gig.poster_id !== userId) {
     return NextResponse.json({ 
@@ -134,11 +119,10 @@ export async function PATCH(
   if (status === 'accepted' && gig.status !== 'open') {
     return NextResponse.json({
       error: 'Cannot accept application',
-      message: 'Gig is no longer open'
+      message: 'This gig is no longer open'
     }, { status: 400 });
   }
 
-  // Update application status
   const { error: updateError } = await supabaseAdmin
     .from('applications')
     .update({ status })
@@ -148,9 +132,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update application' }, { status: 500 });
   }
 
-  // If accepted, update gig and reject other applications
   if (status === 'accepted') {
-    // Update gig with selected worker
     await supabaseAdmin
       .from('gigs')
       .update({ 
@@ -158,54 +140,41 @@ export async function PATCH(
         selected_worker_id: application.applicant_id
       })
       .eq('id', application.gig_id);
-
-    // Reject all other pending applications
+      
     await supabaseAdmin
       .from('applications')
       .update({ status: 'rejected' })
       .eq('gig_id', application.gig_id)
       .neq('id', id)
       .eq('status', 'pending');
-
-    // Send notification email
-    if (applicant?.email) {
-      sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id).catch(e => console.error('Email send failed:', e));
-    }
+    
+    sendHiredEmail(applicant.email, applicant.name, gig.title, gig.id);
   }
 
   return NextResponse.json({
     success: true,
-    message: status === 'accepted' ? 'Application accepted! Worker has been notified.' : 'Application rejected.',
+    message: `Application ${status}`,
     application: { id, status }
   });
 }
 
-// GET /api/applications/[id] - Get a single application
-// SECURED: Only poster or applicant can view
+// GET /api/applications/[id] - Get single application details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
-
-  // Require authentication
-  const auth = await authenticateRequest(request);
+  const { id } = await params;
   
-  if (!auth.success || !auth.user) {
-    return NextResponse.json({
-      error: 'Authentication required',
-      hint: 'Provide x-api-key header or Bearer token'
-    }, { status: 401 });
-  }
-
-  const userId = auth.user.id;
-
-  const { data: application, error } = await supabaseAdmin
+  const { data: application, error } = await supabase
     .from('applications')
     .select(`
-      *,
-      applicant:users!applicant_id(id, name, type, reputation_score),
-      gig:gigs(id, title, status, budget_sats, poster_id)
+      id,
+      proposal_text,
+      proposed_price_sats,
+      status,
+      created_at,
+      applicant:users!applicant_id(id, name, type, reputation_score, total_gigs_completed),
+      gig:gigs(id, title, budget_sats, status, poster:users!poster_id(id, name))
     `)
     .eq('id', id)
     .single();
@@ -214,22 +183,5 @@ export async function GET(
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  // Type assertion for authorization check
-  const rawApp = application as unknown as {
-    applicant_id: string;
-    gig: { poster_id: string } | null;
-  };
-
-  // Only allow poster or applicant to view
-  const posterId = rawApp.gig?.poster_id;
-  const applicantId = rawApp.applicant_id;
-
-  if (userId !== posterId && userId !== applicantId) {
-    return NextResponse.json({ 
-      error: 'Unauthorized',
-      message: 'Only the gig poster or applicant can view this application'
-    }, { status: 403 });
-  }
-
-  return NextResponse.json(application);
+  return NextResponse.json({ application });
 }

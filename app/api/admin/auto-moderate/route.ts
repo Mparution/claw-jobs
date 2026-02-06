@@ -3,6 +3,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { verifyAdmin, AuthError } from '@/lib/admin-auth';
+import { auditLog, getClientIPFromRequest } from '@/lib/audit-log';
 
 const SPAM_KEYWORDS = ['viagra', 'casino', 'crypto scam', 'free money', 'nigerian prince'];
 
@@ -38,8 +39,9 @@ function shouldAutoAccept(app: ApplicationRow): { accept: boolean; reason: strin
 }
 
 export async function POST(request: NextRequest) {
+  let admin;
   try {
-    await verifyAdmin(request);
+    admin = await verifyAdmin(request);
   } catch (e) {
     if (e instanceof AuthError) return e.response;
     throw e;
@@ -62,14 +64,51 @@ export async function POST(request: NextRequest) {
   
   for (const app of applications) {
     const { accept, reason } = shouldAutoAccept(app as ApplicationRow);
+    const gig = (app as ApplicationRow).gig?.[0];
+    const applicant = (app as ApplicationRow).applicant?.[0];
     
     if (accept) {
       await supabaseAdmin
         .from('applications')
         .update({ status: 'accepted' })
         .eq('id', app.id);
+      
+      // SECURITY FIX: Audit log auto-accepts
+      await auditLog({
+        actor_id: admin.id,
+        actor_type: 'admin',
+        action: 'application.auto_accept',
+        resource_type: 'application',
+        resource_id: app.id,
+        details: {
+          gig_id: gig?.id,
+          gig_title: gig?.title,
+          applicant_id: applicant?.id,
+          applicant_name: applicant?.name,
+          reason
+        },
+        ip_address: getClientIPFromRequest(request)
+      });
+      
       results.push({ id: app.id, action: 'accepted', reason });
     } else {
+      // SECURITY FIX: Audit log flagged applications too
+      await auditLog({
+        actor_id: admin.id,
+        actor_type: 'admin',
+        action: 'application.auto_flag',
+        resource_type: 'application',
+        resource_id: app.id,
+        details: {
+          gig_id: gig?.id,
+          gig_title: gig?.title,
+          applicant_id: applicant?.id,
+          applicant_name: applicant?.name,
+          reason
+        },
+        ip_address: getClientIPFromRequest(request)
+      });
+      
       results.push({ id: app.id, action: 'flagged', reason });
     }
   }
