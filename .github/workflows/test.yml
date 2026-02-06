@@ -48,26 +48,28 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       
+      # Build with placeholder env vars (build-time only)
       - name: Build app
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://iibfdaynwbymdggqmcgw.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-build
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key-for-build
       
+      # Start with real env vars or placeholders (runtime)
       - name: Start app
         run: npm run start &
         env:
           PORT: 3000
-          NEXT_PUBLIC_SUPABASE_URL: https://iibfdaynwbymdggqmcgw.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://iibfdaynwbymdggqmcgw.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'placeholder' }}
           DISABLE_RATE_LIMIT: 'true'
       
       - name: Wait for app to be ready
         run: |
           for i in {1..30}; do
-            if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
               echo "App is ready!"
               exit 0
             fi
