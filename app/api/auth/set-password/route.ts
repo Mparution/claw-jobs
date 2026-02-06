@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
 import { authenticateApiKey } from '@/lib/auth';
-import { hashPassword } from '@/lib/password';
+import { hashPassword } from '@/lib/password-hash';
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
@@ -28,17 +28,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
-    // Hash password with PBKDF2 (100k iterations)
+    // SECURITY FIX: Use improved password hashing (PBKDF2 with per-user salt)
     const passwordHash = await hashPassword(password);
-    
-    const { error } = await supabaseAdmin
-      .from('users')
-      .update({ password_hash: passwordHash })
-      .eq('id', auth.user.id);
-
-    if (error) {
-      return NextResponse.json({ error: 'Failed to set password' }, { status: 500 });
-    }
+    await supabaseAdmin.from('users').update({ password_hash: passwordHash }).eq('id', auth.user.id);
 
     return NextResponse.json({
       success: true,

@@ -1,31 +1,29 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 import { REPORT_REASONS } from '@/lib/constants';
 import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
-import { authenticateRequest } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // ===========================================
-  // SECURITY FIX: Use proper authentication
-  // instead of trusting client-provided reporter_id
-  // ===========================================
+  // SECURITY FIX: Require API key authentication
   const auth = await authenticateRequest(request);
   
   if (!auth.success || !auth.user) {
     return NextResponse.json({
       error: auth.error || 'Authentication required',
-      hint: auth.hint || 'Provide x-api-key header to report a gig'
+      hint: auth.hint || 'Provide x-api-key header or Bearer token'
     }, { status: 401 });
   }
 
+  // SECURITY: Derive reporter_id from authenticated user (not from body!)
   const reporterId = auth.user.id;
 
-  // Rate limit check (per authenticated user, not just IP)
+  // Rate limit check (per user, not just per IP)
   const clientIp = getClientIp(request);
   const rateLimitResult = checkRateLimit(`report:${reporterId}:${clientIp}`, RATE_LIMITS.reports);
   
@@ -55,9 +53,10 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
   
+  // SECURITY FIX: No longer accept reporter_id from body
   const { reason, details } = body;
   
-  // Validate reason
+  // Validate
   if (!reason) {
     return NextResponse.json({ error: 'Missing reason' }, { status: 400 });
   }
@@ -70,7 +69,7 @@ export async function POST(
   }
   
   // Check gig exists
-  const { data: gig, error: gigError } = await supabaseAdmin
+  const { data: gig, error: gigError } = await supabase
     .from('gigs')
     .select('id, poster_id')
     .eq('id', gigId)
@@ -80,44 +79,48 @@ export async function POST(
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
 
-  // Can't report your own gig
+  // SECURITY: Prevent self-reporting (can't report your own gig)
   if (gig.poster_id === reporterId) {
-    return NextResponse.json({ error: 'Cannot report your own gig' }, { status: 400 });
+    return NextResponse.json({ error: 'You cannot report your own gig' }, { status: 400 });
   }
   
-  // Create report - use upsert to handle duplicates gracefully
-  const { data: report, error: reportError } = await supabaseAdmin
+  // Check for duplicate report
+  const { data: existingReport } = await supabase
     .from('reports')
-    .upsert({
+    .select('id')
+    .eq('gig_id', gigId)
+    .eq('reporter_id', reporterId)
+    .single();
+  
+  if (existingReport) {
+    return NextResponse.json({ error: 'You have already reported this gig' }, { status: 400 });
+  }
+  
+  // Create report
+  const { data: report, error: reportError } = await supabase
+    .from('reports')
+    .insert({
       gig_id: gigId,
       reporter_id: reporterId,
       reason,
       details: details || null,
       status: 'pending'
-    }, {
-      onConflict: 'gig_id,reporter_id',
-      ignoreDuplicates: true
     })
     .select()
     .single();
   
   if (reportError) {
-    // Check for duplicate
-    if (reportError.code === '23505' || reportError.message?.includes('duplicate')) {
-      return NextResponse.json({ error: 'You have already reported this gig' }, { status: 400 });
-    }
-    console.error('Report error:', reportError);
-    return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 });
+    return NextResponse.json({ error: reportError.message }, { status: 500 });
   }
   
   // Flag the gig for review if it has multiple reports
-  const { count } = await supabaseAdmin
+  const { count } = await supabase
     .from('reports')
     .select('*', { count: 'exact', head: true })
     .eq('gig_id', gigId);
   
   if (count && count >= 3) {
-    await supabaseAdmin
+    await supabase
       .from('gigs')
       .update({ 
         moderation_status: 'flagged',
@@ -129,7 +132,7 @@ export async function POST(
   return NextResponse.json({ 
     success: true, 
     message: 'Report submitted. Thank you for helping keep Claw Jobs safe.',
-    report_id: report?.id
+    report_id: report.id
   }, {
     headers: {
       'X-RateLimit-Remaining': String(rateLimitResult.remaining)

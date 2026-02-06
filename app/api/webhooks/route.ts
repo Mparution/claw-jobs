@@ -3,62 +3,17 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateRequest } from '@/lib/auth';
+import { hashApiKey, getApiKeyPrefix, verifyApiKey } from '@/lib/api-key-hash';
+import { generateSecureApiKey } from '@/lib/crypto-utils';
 
 interface WebhookSubscription {
   id: string;
   url: string;
   events: string[];
-  secret: string;
+  secret_hash?: string;
+  secret_prefix?: string;
   active: boolean;
   created_at: string;
-}
-
-// SSRF Protection: Validate webhook URLs
-function isUrlSafe(urlString: string): { safe: boolean; error?: string } {
-  try {
-    const url = new URL(urlString);
-    
-    // Must be HTTPS
-    if (url.protocol !== 'https:') {
-      return { safe: false, error: 'URL must use HTTPS' };
-    }
-    
-    // Block localhost and common internal hostnames
-    const blockedHostnames = [
-      'localhost', '127.0.0.1', '0.0.0.0', '::1',
-      'metadata.google.internal', 'metadata',
-      'kubernetes.default', 'kubernetes.default.svc'
-    ];
-    if (blockedHostnames.includes(url.hostname.toLowerCase())) {
-      return { safe: false, error: 'Internal hostnames are not allowed' };
-    }
-    
-    // Block cloud metadata endpoints
-    if (url.hostname === '169.254.169.254') {
-      return { safe: false, error: 'Cloud metadata endpoints are not allowed' };
-    }
-    
-    // Block private IP ranges (basic check via hostname patterns)
-    const privatePatterns = [
-      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,           // 10.x.x.x
-      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,  // 172.16-31.x.x
-      /^192\.168\.\d{1,3}\.\d{1,3}$/,              // 192.168.x.x
-      /^fd[0-9a-f]{2}:/i,                          // IPv6 private
-      /^fe80:/i                                     // IPv6 link-local
-    ];
-    
-    for (const pattern of privatePatterns) {
-      if (pattern.test(url.hostname)) {
-        return { safe: false, error: 'Private IP addresses are not allowed' };
-      }
-    }
-    
-    // Block file:// and other dangerous protocols (already checked via https requirement)
-    
-    return { safe: true };
-  } catch {
-    return { safe: false, error: 'Invalid URL format' };
-  }
 }
 
 // List user's webhooks
@@ -71,14 +26,20 @@ export async function GET(request: NextRequest) {
 
   const { data: webhooks, error: webhooksError } = await supabaseAdmin
     .from('webhook_subscriptions')
-    .select('id, url, events, active, created_at')
+    .select('id, url, events, active, created_at, secret_prefix')
     .eq('user_id', auth.user.id);
 
   if (webhooksError) {
     return NextResponse.json({ error: webhooksError.message }, { status: 500 });
   }
 
-  return NextResponse.json(webhooks ?? []);
+  // Return webhooks with masked secrets (just show prefix if available)
+  const maskedWebhooks = (webhooks ?? []).map((wh: { secret_prefix?: string }) => ({
+    ...wh,
+    secret_hint: wh.secret_prefix ? `${wh.secret_prefix}...` : '(legacy)'
+  }));
+
+  return NextResponse.json(maskedWebhooks);
 }
 
 // Create webhook subscription
@@ -102,17 +63,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'url and events required' }, { status: 400 });
   }
 
-  // Validate URL for SSRF protection
-  const urlCheck = isUrlSafe(url);
-  if (!urlCheck.safe) {
-    return NextResponse.json({ 
-      error: 'Invalid webhook URL',
-      detail: urlCheck.error
-    }, { status: 400 });
+  // Validate URL format
+  try {
+    const parsedUrl = new URL(url);
+    // SECURITY: Only allow HTTPS URLs
+    if (parsedUrl.protocol !== 'https:') {
+      return NextResponse.json({ error: 'Webhook URL must use HTTPS' }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
   }
 
-  // Generate webhook secret
-  const secret = crypto.randomUUID().replace(/-/g, '');
+  // SECURITY FIX: Generate secure secret and store only the hash
+  const secret = generateSecureApiKey('whsec_');
+  const secretHash = await hashApiKey(secret);
+  const secretPrefix = getApiKeyPrefix(secret);
 
   const { data: webhook, error } = await supabaseAdmin
     .from('webhook_subscriptions')
@@ -120,25 +85,23 @@ export async function POST(request: NextRequest) {
       user_id: auth.user.id,
       url,
       events,
-      secret,
+      secret_hash: secretHash,
+      secret_prefix: secretPrefix,
       active: true
     })
-    .select()
+    .select('id, url, events, created_at')
     .single();
 
   if (error) {
-    console.error("Webhook error:", error);
-    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const typedWebhook = webhook as WebhookSubscription;
-
   return NextResponse.json({
-    id: typedWebhook.id,
-    url: typedWebhook.url,
-    events: typedWebhook.events,
-    secret: typedWebhook.secret,
-    message: 'Save your secret! It won\'t be shown again.'
+    id: webhook.id,
+    url: webhook.url,
+    events: webhook.events,
+    secret: secret,  // ONLY shown once at creation time
+    warning: '⚠️ Save your secret now! It will NOT be shown again.'
   });
 }
 
@@ -164,9 +127,35 @@ export async function DELETE(request: NextRequest) {
     .eq('user_id', auth.user.id);
 
   if (error) {
-    console.error("Webhook error:", error);
-    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, message: 'Webhook deleted' });
+}
+
+// Helper: Verify a webhook secret (for internal use when delivering webhooks)
+export async function verifyWebhookSecret(
+  webhookId: string, 
+  providedSecret: string
+): Promise<boolean> {
+  const { data: webhook } = await supabaseAdmin
+    .from('webhook_subscriptions')
+    .select('secret_hash, secret')  // Include legacy secret field
+    .eq('id', webhookId)
+    .single();
+
+  if (!webhook) return false;
+
+  // Try hashed verification first (new webhooks)
+  if (webhook.secret_hash) {
+    return verifyApiKey(providedSecret, webhook.secret_hash);
+  }
+
+  // Fallback to plaintext comparison (legacy webhooks)
+  // TODO: Remove after migration
+  if (webhook.secret) {
+    return webhook.secret === providedSecret;
+  }
+
+  return false;
 }

@@ -1,85 +1,109 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
-// Verify Resend webhook signature
-async function verifyWebhookSignature(request: NextRequest, body: string): Promise<boolean> {
-  const signature = request.headers.get('svix-signature');
-  const timestamp = request.headers.get('svix-timestamp');
-  const webhookId = request.headers.get('svix-id');
-  
-  // If no signature headers, check for a shared secret as fallback
+// Resend webhook signature verification
+// Resend uses svix for webhook signing: https://docs.resend.com/webhooks
+async function verifyResendSignature(
+  request: NextRequest,
+  body: string
+): Promise<boolean> {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   
+  // If no secret configured, reject all requests in production
   if (!webhookSecret) {
-    // No secret configured - log warning but allow (for backwards compatibility)
-    // In production, you should ALWAYS configure RESEND_WEBHOOK_SECRET
-    console.error("RESEND_WEBHOOK_SECRET not configured - rejecting request");
+    console.error('[EMAIL-INBOUND] RESEND_WEBHOOK_SECRET not configured');
+    // In development, allow unverified requests with a warning
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[EMAIL-INBOUND] Allowing unverified webhook in development');
+      return true;
+    }
     return false;
   }
-  
-  if (!signature || !timestamp || !webhookId) {
-    console.error('Missing webhook signature headers');
+
+  // Resend uses Svix for signing - signature is in svix-signature header
+  const svixId = request.headers.get('svix-id');
+  const svixTimestamp = request.headers.get('svix-timestamp');
+  const svixSignature = request.headers.get('svix-signature');
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    console.error('[EMAIL-INBOUND] Missing svix headers');
     return false;
   }
-  
-  // Verify timestamp is within 5 minutes
-  const timestampMs = parseInt(timestamp) * 1000;
-  const now = Date.now();
-  if (Math.abs(now - timestampMs) > 5 * 60 * 1000) {
-    console.error('Webhook timestamp too old');
+
+  // Verify timestamp is recent (within 5 minutes)
+  const timestamp = parseInt(svixTimestamp, 10);
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > 300) {
+    console.error('[EMAIL-INBOUND] Timestamp too old or in future');
     return false;
   }
-  
-  // Verify signature using HMAC-SHA256
-  try {
-    const signedPayload = `${webhookId}.${timestamp}.${body}`;
-    const encoder = new TextEncoder();
-    
-    // Decode base64 secret
-    const secretBytes = Uint8Array.from(atob(webhookSecret.replace('whsec_', '')), c => c.charCodeAt(0));
-    
-    const key = await crypto.subtle.importKey(
-      'raw',
-      secretBytes,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    
-    const signatureBytes = await crypto.subtle.sign(
-      'HMAC',
-      key,
-      encoder.encode(signedPayload)
-    );
-    
-    const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
-    
-    // Check if any of the provided signatures match
-    const signatures = signature.split(' ').map(s => s.replace('v1,', ''));
-    return signatures.some(sig => sig === expectedSignature);
-  } catch (error) {
-    console.error('Signature verification error:', error);
+
+  // Construct signed payload: "msgId.timestamp.body"
+  const signedPayload = `${svixId}.${svixTimestamp}.${body}`;
+
+  // Parse signature header (format: "v1,signature1 v1,signature2")
+  const signatures = svixSignature.split(' ').map(sig => {
+    const [version, hash] = sig.split(',');
+    return { version, hash };
+  });
+
+  // Only process v1 signatures
+  const v1Signatures = signatures.filter(s => s.version === 'v1');
+  if (v1Signatures.length === 0) {
+    console.error('[EMAIL-INBOUND] No v1 signature found');
     return false;
   }
+
+  // Compute expected signature
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(webhookSecret);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signatureBuffer = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(signedPayload)
+  );
+
+  const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+
+  // Constant-time comparison against all provided signatures
+  for (const sig of v1Signatures) {
+    if (sig.hash && sig.hash.length === expectedSignature.length) {
+      let match = 0;
+      for (let i = 0; i < expectedSignature.length; i++) {
+        match |= sig.hash.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+      }
+      if (match === 0) return true;
+    }
+  }
+
+  console.error('[EMAIL-INBOUND] Signature verification failed');
+  return false;
 }
 
 // Resend Inbound webhook
 export async function POST(request: NextRequest) {
   try {
-    // Read body as text for signature verification
-    const bodyText = await request.text();
+    // Get raw body for signature verification
+    const rawBody = await request.text();
     
-    // ===========================================
     // SECURITY FIX: Verify webhook signature
-    // ===========================================
-    const isValid = await verifyWebhookSignature(request, bodyText);
+    const isValid = await verifyResendSignature(request, rawBody);
     if (!isValid) {
-      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
-    
-    const body = JSON.parse(bodyText);
+
+    // Parse body after verification
+    const body = JSON.parse(rawBody);
     
     // Resend sends: from, to, subject, text, html, headers, etc.
     const { from, subject, text, html } = body;
@@ -87,19 +111,18 @@ export async function POST(request: NextRequest) {
     // Extract sender email
     const fromEmail = typeof from === 'string' ? from : from?.email || 'unknown';
     const fromName = typeof from === 'object' ? from?.name : null;
-    
-    // Basic validation
-    if (!fromEmail || fromEmail === 'unknown') {
-      return NextResponse.json({ error: 'Invalid sender' }, { status: 400 });
-    }
+
+    // SECURITY: Basic input sanitization
+    const sanitizedSubject = (subject || 'No subject').slice(0, 200);
+    const sanitizedContent = (text || html || 'Empty email').slice(0, 10000);
     
     // Store in feedback table
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('feedback')
       .insert({
-        from_name: fromName || fromEmail,
-        from_email: fromEmail,
-        message: `[EMAIL] Subject: ${subject || 'No subject'}\n\n${text || html || 'Empty email'}`,
+        from_name: (fromName || fromEmail).slice(0, 100),
+        from_email: fromEmail.slice(0, 255),
+        message: `[EMAIL] Subject: ${sanitizedSubject}\n\n${sanitizedContent}`,
         status: 'new'
       });
 
@@ -118,8 +141,8 @@ export async function POST(request: NextRequest) {
 // Health check
 export async function GET() {
   return NextResponse.json({ 
-    status: 'ok',
-    endpoint: 'email-inbound',
-    note: 'POST emails to this endpoint via Resend webhook'
+    status: 'ready',
+    description: 'Email inbound webhook for feedback@claw-jobs.com',
+    note: 'Webhook signature verification required'
   });
 }
