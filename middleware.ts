@@ -91,8 +91,6 @@ export function middleware(request: NextRequest) {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Content-Security-Policy': CSP_HEADER,
-        // SECURITY FIX M1: Add HSTS header
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
       },
     });
   }
@@ -108,7 +106,6 @@ export function middleware(request: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.headers.set('Content-Security-Policy', CSP_HEADER);
   
-  // SECURITY FIX M1: Add HSTS header (enforces HTTPS for 1 year)
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   
   // Add CORS headers to API responses

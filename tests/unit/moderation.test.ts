@@ -111,7 +111,7 @@ describe('Moderation Utilities', () => {
       expect(result.requiresReview).toBe(true);
     });
 
-    it('requires review for new users', () => {
+    it('auto-approves gigs from new users (gigsBeforeAutoApproval=0)', () => {
       const result = moderateGig(
         'Write a blog post',
         'I need help writing a 1000 word blog post about technology',
@@ -119,9 +119,9 @@ describe('Moderation Utilities', () => {
         0,
         0
       );
-      expect(result.status).toBe(MODERATION_STATUS.PENDING);
-      expect(result.requiresReview).toBe(true);
-      expect(result.reason).toContain('New user');
+      // With gigsBeforeAutoApproval=0, all users without flagged content are auto-approved
+      expect(result.status).toBe(MODERATION_STATUS.APPROVED);
+      expect(result.autoApproved).toBe(true);
     });
 
     it('auto-approves gigs from established users with clean content', () => {
@@ -142,7 +142,8 @@ describe('Moderation Utilities', () => {
     it('identifies new users correctly', () => {
       const result = getUserTrustLevel(0, 0);
       expect(result.isEstablished).toBe(false);
-      expect(result.requiresGigReview).toBe(true);
+      // With gigsBeforeAutoApproval=0, no users require gig review
+      expect(result.requiresGigReview).toBe(false);
       expect(result.escrowDelayHours).toBe(48);
     });
 
@@ -153,9 +154,10 @@ describe('Moderation Utilities', () => {
       expect(result.escrowDelayHours).toBe(24);
     });
 
-    it('requires gig review for users below threshold', () => {
+    it('does not require gig review with gigsBeforeAutoApproval=0', () => {
       const result = getUserTrustLevel(2, 4.0);
-      expect(result.requiresGigReview).toBe(true);
+      // With gigsBeforeAutoApproval=0, even users with few gigs don't need review
+      expect(result.requiresGigReview).toBe(false);
     });
 
     it('does not require gig review for users at threshold', () => {

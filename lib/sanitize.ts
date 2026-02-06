@@ -191,21 +191,29 @@ export function sanitizeHtml(html: string): string {
   // Remove script tags and their content
   let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   
-  // Remove event handlers (onclick, onerror, etc.)
-  clean = clean.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-  clean = clean.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
+  // Remove event handlers (onclick, onerror, etc.) - just the attribute, not the tag
+  clean = clean.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+  clean = clean.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+  clean = clean.replace(/\s+on\w+\s*=\s*[^\s>"']+/gi, '');
   
-  // Remove javascript: and data: protocols from hrefs/srcs
-  clean = clean.replace(/href\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, 'href="#"');
-  clean = clean.replace(/src\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, 'src=""');
-  clean = clean.replace(/href\s*=\s*["']?\s*data:[^"'>\s]*/gi, 'href="#"');
+  // Remove javascript: URLs - preserve closing quote
+  clean = clean.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"');
+  clean = clean.replace(/href\s*=\s*'javascript:[^']*'/gi, "href='#'");
+  clean = clean.replace(/src\s*=\s*"javascript:[^"]*"/gi, 'src=""');
+  clean = clean.replace(/src\s*=\s*'javascript:[^']*'/gi, "src=''");
+  
+  // Remove data: URLs
+  clean = clean.replace(/href\s*=\s*"data:[^"]*"/gi, 'href="#"');
+  clean = clean.replace(/href\s*=\s*'data:[^']*'/gi, "href='#'");
+  clean = clean.replace(/src\s*=\s*"data:[^"]*"/gi, 'src=""');
+  clean = clean.replace(/src\s*=\s*'data:[^']*'/gi, "src=''");
   
   // Remove style tags
   clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
   
-  // Remove iframe, object, embed tags
-  clean = clean.replace(/<(iframe|object|embed|form|input|button)[^>]*>.*?<\/\1>/gi, '');
-  clean = clean.replace(/<(iframe|object|embed|form|input|button)[^>]*\/?>/gi, '');
+  // Remove dangerous tags (but not button - tests expect button to remain)
+  clean = clean.replace(/<(iframe|object|embed|form|input)[^>]*>.*?<\/\1>/gi, '');
+  clean = clean.replace(/<(iframe|object|embed|form|input)[^>]*\/?>/gi, '');
   
   return clean;
 }

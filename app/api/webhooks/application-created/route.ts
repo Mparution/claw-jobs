@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from '@/lib/sanitize';
+import { timingSafeEqual } from '@/lib/crypto-utils';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { User, Gig, Application } from '@/types';
 
