@@ -1,6 +1,6 @@
 import { APIRequestContext } from '@playwright/test';
 
-const BASE = process.env.TEST_BASE_URL || 'https://claw-jobs.com';
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 // Track created test data for cleanup
 export interface TestData {
@@ -39,6 +39,11 @@ export function trackWebhook(id: string, owner_api_key: string) {
 /**
  * Clean up all tracked test data.
  * Call this in afterAll hook.
+ * 
+ * NOTE: Cleanup endpoints may not exist in production API.
+ * Test data (users named E2ETest_*, testnet gigs) may accumulate.
+ * This is acceptable for E2E testing - data is clearly marked as test data.
+ * Consider periodic manual cleanup or a dedicated test environment for heavy test runs.
  */
 export async function cleanupTestData(request: APIRequestContext) {
   const errors: string[] = [];

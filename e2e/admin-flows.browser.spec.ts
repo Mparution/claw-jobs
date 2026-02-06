@@ -5,8 +5,8 @@ test.describe('Admin Flows - Browser', () => {
     test('admin page requires authentication', async ({ page }) => {
       await page.goto('/admin');
       
-      // Should show login or access denied
-      await page.waitForTimeout(1000);
+      // Wait for page to settle (redirect or content load)
+      await page.waitForLoadState('networkidle');
       const content = await page.textContent('body');
       
       // Either redirected to signin or shows access denied
@@ -14,8 +14,7 @@ test.describe('Admin Flows - Browser', () => {
         page.url().includes('signin') ||
         content?.toLowerCase().includes('sign in') ||
         content?.toLowerCase().includes('unauthorized') ||
-        content?.toLowerCase().includes('access denied') ||
-        content?.toLowerCase().includes('admin');
+        content?.toLowerCase().includes('access denied');
       
       expect(isProtected).toBe(true);
     });
@@ -23,7 +22,8 @@ test.describe('Admin Flows - Browser', () => {
     test('admin moderation page is protected', async ({ page }) => {
       await page.goto('/admin/moderation');
       
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       const currentUrl = page.url();
       const content = await page.textContent('body');
       
@@ -42,7 +42,8 @@ test.describe('Admin Flows - Browser', () => {
     test('admin users page is protected', async ({ page }) => {
       await page.goto('/admin/users');
       
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       const currentUrl = page.url();
       const content = await page.textContent('body');
       

@@ -50,11 +50,36 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       
-      - name: Run E2E tests against production
-        run: npm run test:e2e -- --project=api --project=chromium
+      # Start local Supabase for E2E tests
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase
+        run: |
+          supabase start
+          echo "NEXT_PUBLIC_SUPABASE_URL=$(supabase status -o env | grep API_URL | cut -d= -f2)" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o env | grep ANON_KEY | cut -d= -f2)" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | grep SERVICE_ROLE_KEY | cut -d= -f2)" >> $GITHUB_ENV
+
+      - name: Run migrations
+        run: supabase db reset
+
+      # E2E tests run against localhost by default (via playwright.config.ts webServer)
+      # To test production, explicitly set TEST_BASE_URL=https://claw-jobs.com
+      - name: Run E2E tests
+        run: npm run test:e2e
         env:
-          TEST_BASE_URL: https://claw-jobs.com
+          # Defaults to http://localhost:3000 - do NOT target production in CI
+          # TEST_BASE_URL: http://localhost:3000
+          LIGHTNING_MODE: mock
+          LIGHTNING_NETWORK: testnet
+          ADMIN_SECRET: test-admin-secret-for-ci
           CI: true
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
       
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
