@@ -49,7 +49,7 @@ jobs:
 
       - run: npm install
 
-      - run: npm run test:unit -- --ci --coverage
+      - run: npm run test:ci
 
       - name: Upload coverage
         if: always()
