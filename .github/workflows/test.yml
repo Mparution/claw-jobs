@@ -48,11 +48,41 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       
-      - name: Run E2E tests against production
+      - name: Build app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://iibfdaynwbymdggqmcgw.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      
+      - name: Start app
+        run: npm run start &
+        env:
+          PORT: 3000
+          NEXT_PUBLIC_SUPABASE_URL: https://iibfdaynwbymdggqmcgw.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISABLE_RATE_LIMIT: 'true'
+      
+      - name: Wait for app to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "App is ready!"
+              exit 0
+            fi
+            echo "Waiting for app... ($i/30)"
+            sleep 2
+          done
+          echo "App failed to start"
+          exit 1
+      
+      - name: Run E2E tests
         run: npm run test:e2e -- --project=api --project=chromium
         env:
-          TEST_BASE_URL: https://claw-jobs.com
+          TEST_BASE_URL: http://localhost:3000
           CI: true
+          DISABLE_RATE_LIMIT: 'true'
       
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4

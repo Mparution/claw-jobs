@@ -44,10 +44,22 @@ interface SimpleLimitResult {
 }
 
 /**
+ * Check if rate limiting should be bypassed (for CI/test environments)
+ */
+function isRateLimitDisabled(): boolean {
+  return process.env.DISABLE_RATE_LIMIT === 'true';
+}
+
+/**
  * Simple rate limiter (original rateLimit.ts interface)
  * ⚠️ Per-isolate only - use Cloudflare WAF for real protection
  */
 export function rateLimit(key: string, config: SimpleLimitConfig): SimpleLimitResult {
+  // Allow bypassing rate limits in CI/test environments
+  if (isRateLimitDisabled()) {
+    return { allowed: true, remaining: config.max, resetIn: config.windowMs };
+  }
+
   const now = Date.now();
   const entry = store.get(key);
   
@@ -91,6 +103,11 @@ interface DetailedLimitResult {
  * ⚠️ Per-isolate only - use Cloudflare WAF for real protection
  */
 export function checkRateLimit(identifier: string, config: DetailedLimitConfig): DetailedLimitResult {
+  // Allow bypassing rate limits in CI/test environments
+  if (isRateLimitDisabled()) {
+    return { allowed: true, remaining: config.maxRequests, resetAt: Date.now() + config.windowMs };
+  }
+
   const now = Date.now();
   
   // Periodic cleanup (1% chance per call)
