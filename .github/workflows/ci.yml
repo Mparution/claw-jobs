@@ -27,9 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - run: npm ci || npm install
+      - run: npm install
 
       - run: npm run lint -- --max-warnings 50
 
@@ -47,9 +46,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - run: npm ci || npm install
+      - run: npm install
 
       - run: npm run test:unit -- --ci --coverage
         continue-on-error: true  # Don't fail if no unit tests yet
@@ -75,9 +73,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - run: npm ci || npm install
+      - run: npm install
 
       # Install Playwright browsers
       - run: npx playwright install --with-deps chromium
@@ -132,9 +129,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - run: npm ci || npm install
+      - run: npm install
 
       - name: Build
         run: npm run build
