@@ -70,8 +70,8 @@ test.describe('Feedback & Reporting - Browser', () => {
     test('404 page shows for invalid routes', async ({ page }) => {
       await page.goto('/this-page-does-not-exist-12345');
       
-      // Should show 404 or redirect
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       const content = await page.textContent('body');
       expect(content?.toLowerCase()).toMatch(/not found|404|error|doesn't exist/i);
     });
@@ -79,7 +79,8 @@ test.describe('Feedback & Reporting - Browser', () => {
     test('offline page exists and contains offline content', async ({ page }) => {
       await page.goto('/offline');
       
-      await page.waitForTimeout(500);
+      // Wait for navigation to complete
+      await page.waitForLoadState('domcontentloaded');
       
       // Should navigate to offline page
       expect(page.url()).toContain('offline');

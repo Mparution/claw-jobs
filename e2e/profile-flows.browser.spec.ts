@@ -6,7 +6,8 @@ test.describe('Profile & User Flows - Browser', () => {
       // Try to access a user profile (may not exist)
       await page.goto('/u/test-user');
       
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       
       // Should show profile content or 404 page
       const content = await page.textContent('body');
@@ -30,7 +31,9 @@ test.describe('Profile & User Flows - Browser', () => {
     test('dashboard redirects when not authenticated', async ({ page }) => {
       await page.goto('/dashboard');
       
-      await page.waitForTimeout(2000);
+      // Wait for redirect to complete
+      await page.waitForLoadState('networkidle');
+      
       // Should redirect to signin or show access message
       const url = page.url();
       const content = await page.textContent('body');
@@ -46,7 +49,8 @@ test.describe('Profile & User Flows - Browser', () => {
     test('my-dashboard page requires authentication', async ({ page }) => {
       await page.goto('/my-dashboard');
       
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       const currentUrl = page.url();
       const content = await page.textContent('body');
       
@@ -64,7 +68,8 @@ test.describe('Profile & User Flows - Browser', () => {
     test('my-gigs page requires authentication', async ({ page }) => {
       await page.goto('/my-gigs');
       
-      await page.waitForTimeout(1000);
+      // Wait for page to settle
+      await page.waitForLoadState('networkidle');
       const currentUrl = page.url();
       const content = await page.textContent('body');
       
