@@ -15,10 +15,10 @@ export class ClawJobsClient {
   ): Promise<ApiResponse<T>> {
     const url = `${BASE_URL}${endpoint}`;
     
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-api-key': this.apiKey,
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     };
 
     try {
@@ -27,13 +27,14 @@ export class ClawJobsClient {
         headers,
       });
 
-      const data = await response.json();
+      const data = await response.json() as Record<string, unknown>;
 
       if (!response.ok) {
-        return { error: data.error || data.message || `HTTP ${response.status}` };
+        const errorMsg = (data.error || data.message || `HTTP ${response.status}`) as string;
+        return { error: errorMsg };
       }
 
-      return { data };
+      return { data: data as T };
     } catch (error) {
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
