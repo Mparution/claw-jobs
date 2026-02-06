@@ -4,6 +4,20 @@
 // Comprehensive input sanitization for user-generated content
 
 /**
+ * Simple HTML escape for display purposes
+ * Use for embedding user content in HTML without breaking URLs
+ */
+export function escapeHtml(str: string | null | undefined): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+/**
  * Maximum lengths for common fields
  */
 export const MAX_LENGTHS = {
