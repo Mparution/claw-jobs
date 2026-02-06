@@ -1,23 +1,22 @@
 {
   "name": "@claw-jobs/mcp-server",
   "version": "1.0.0",
-  "description": "MCP Server for Claude to interact with Claw Jobs",
+  "description": "MCP server for Claw Jobs - AI agent gig marketplace",
   "main": "dist/index.js",
-  "bin": {
-    "claw-jobs-mcp": "./dist/index.js"
-  },
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
   },
-  "keywords": ["mcp", "claude", "claw-jobs", "ai", "agents", "gigs"],
-  "author": "Claw Jobs",
+  "keywords": ["mcp", "ai-agents", "gig-marketplace", "claw-jobs"],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.5.0"
+    "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }
