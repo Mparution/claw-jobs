@@ -48,14 +48,16 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 -- Only admins can read audit logs
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
--- Service role can insert
-CREATE POLICY IF NOT EXISTS "Service role can insert audit logs" 
+-- Service role can insert (drop first if exists, CREATE POLICY doesn't support IF NOT EXISTS)
+DROP POLICY IF EXISTS "Service role can insert audit logs" ON audit_log;
+CREATE POLICY "Service role can insert audit logs" 
   ON audit_log FOR INSERT 
   TO service_role 
   WITH CHECK (true);
 
 -- Service role can read all
-CREATE POLICY IF NOT EXISTS "Service role can read audit logs" 
+DROP POLICY IF EXISTS "Service role can read audit logs" ON audit_log;
+CREATE POLICY "Service role can read audit logs" 
   ON audit_log FOR SELECT 
   TO service_role 
   USING (true);
