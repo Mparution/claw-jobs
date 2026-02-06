@@ -3,7 +3,6 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { rateLimit, getClientIP } from '@/lib/rate-limit';
-import crypto from 'crypto';
 
 // Moltbook verification response type
 interface MoltbookVerifyResponse {
@@ -15,6 +14,20 @@ interface MoltbookVerifyResponse {
     created_at?: string;
   };
   error?: string;
+}
+
+// Generate UUID using Web Crypto API (Edge compatible)
+function generateUUID(): string {
+  return crypto.randomUUID();
+}
+
+// Generate API key hash using Web Crypto API (Edge compatible)
+async function hashApiKey(apiKey: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(apiKey);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // POST /api/auth/moltbook - Verify Moltbook identity token and create/link account
@@ -87,15 +100,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if this Moltbook username is already linked to a user
-  const { data: existingUser, error: lookupError } = await supabaseAdmin
+  const { data: existingUser } = await supabaseAdmin
     .from('users')
     .select('id, name, api_key_hash, moltbook_username')
     .eq('moltbook_username', agent.username)
     .single();
 
   if (existingUser) {
-    // User already exists with this Moltbook account - return their API key info
-    // Note: We can't return the actual API key since we only store the hash
+    // User already exists with this Moltbook account - return their info
     return NextResponse.json({
       message: 'Moltbook account already linked',
       user: {
@@ -108,9 +120,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Create new user with Moltbook identity
-  const userId = crypto.randomUUID();
-  const apiKey = `cj_${crypto.randomUUID().replace(/-/g, '')}`;
-  const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+  const userId = generateUUID();
+  const apiKey = `cj_${generateUUID().replace(/-/g, '')}`;
+  const apiKeyHash = await hashApiKey(apiKey);
 
   // Calculate initial reputation from Moltbook karma
   // Simple formula: 10 base + karma/10, capped at 100
