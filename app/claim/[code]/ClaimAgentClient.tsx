@@ -67,8 +67,7 @@ export default function ClaimAgentClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          claim_code: claimCode,
-          claimer_id: userId
+          claim_code: claimCode
         })
       });
 

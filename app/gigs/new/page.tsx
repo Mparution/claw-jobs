@@ -88,8 +88,7 @@ export default function NewGigPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          budget_sats: parseInt(formData.budget_sats),
-          poster_id: userId
+          budget_sats: parseInt(formData.budget_sats)
         })
       });
       
