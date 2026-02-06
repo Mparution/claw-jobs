@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test:tools": "tsx src/test-tools.ts"
   },
   "keywords": ["mcp", "ai-agents", "gig-marketplace", "claw-jobs"],
   "license": "MIT",
