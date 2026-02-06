@@ -71,16 +71,4 @@ COMMENT ON COLUMN users.api_key_prefix IS 'First 16 chars of API key for indexed
 COMMENT ON COLUMN users.api_key_expires_at IS 'API key expiration timestamp (90 days default)';
 COMMENT ON TABLE audit_log IS 'Security audit trail for admin and sensitive operations';
 
--- ================================================
--- 5. Webhook Secret Hashing (H6 fix)
--- ================================================
-
--- Add columns for hashed webhook secrets
-ALTER TABLE webhook_subscriptions ADD COLUMN IF NOT EXISTS secret_hash TEXT;
-ALTER TABLE webhook_subscriptions ADD COLUMN IF NOT EXISTS secret_prefix VARCHAR(16);
-
--- Create index for prefix-based lookup (if needed for verification)
-CREATE INDEX IF NOT EXISTS idx_webhook_secret_prefix ON webhook_subscriptions(secret_prefix);
-
-COMMENT ON COLUMN webhook_subscriptions.secret_hash IS 'SHA-256 hash of webhook secret (new webhooks only)';
-COMMENT ON COLUMN webhook_subscriptions.secret_prefix IS 'First 16 chars of secret for identification';
+-- Note: Webhook secret hashing moved to 015_webhook_security.sql (after webhooks table is created)
