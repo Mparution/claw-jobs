@@ -50,7 +50,6 @@ jobs:
       - run: npm install
 
       - run: npm run test:unit -- --ci --coverage
-        continue-on-error: true  # Don't fail if no unit tests yet
 
       - name: Upload coverage
         if: always()
@@ -67,10 +66,6 @@ jobs:
     name: Flow Tests
     runs-on: ubuntu-latest
     needs: [lint]  # Don't waste CI minutes if lint fails
-    # TODO: Flow tests require local Supabase with base schema migration (001_base_schema.sql)
-    # Currently fails because migrations assume base tables exist. Fix by adding 001_base_schema.sql
-    # that creates users, gigs, applications, etc. tables before moderation migration runs.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 

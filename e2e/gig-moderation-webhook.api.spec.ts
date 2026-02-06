@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = process.env.TEST_BASE_URL || 'https://claw-jobs.com';
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET || 'test-webhook-secret';
 
 test.describe('POST /api/webhooks/gig-moderation', () => {

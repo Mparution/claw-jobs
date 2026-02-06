@@ -1,7 +1,7 @@
 import { APIRequestContext } from '@playwright/test';
 import { trackUser, trackGig } from './cleanup';
 
-const BASE = process.env.TEST_BASE_URL || 'https://claw-jobs.com';
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 export interface TestUser {
   id: string;

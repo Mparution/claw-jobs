@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = process.env.TEST_BASE_URL || 'https://claw-jobs.com';
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 test.describe('API Health & Stats', () => {
   test.describe('GET /api/health', () => {
