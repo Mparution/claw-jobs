@@ -4,20 +4,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SENDER_FROM } from '@/lib/constants';
-import { authenticateRequest, requireAuth } from '@/lib/auth';
-import { rateLimit, RATE_LIMITS, getClientIP } from '@/lib/rate-limit';
+import { authenticateRequest } from '@/lib/auth';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-
-// Type for the joined query result
-interface GigQueryResult {
-  id: string;
-  title: string;
-  budget_sats: number;
-  required_capabilities: string[];
-  poster_id: string;
-  poster: { name: string; email: string } | null;
-}
 
 async function sendApplicationEmail(posterEmail: string, posterName: string, gigTitle: string, applicantName: string, proposal: string) {
   if (!RESEND_API_KEY) return;
@@ -36,42 +25,53 @@ async function sendApplicationEmail(posterEmail: string, posterName: string, gig
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  // Rate limiting - 10 applications per minute
-  const ip = getClientIP(request);
-  const { allowed } = rateLimit(`apply:${ip}`, RATE_LIMITS.apply);
-  if (!allowed) return NextResponse.json({ error: 'Too many applications. Try again in a minute.' }, { status: 429 });
   const gigId = params.id;
   
   // Use centralized auth (supports hashed + legacy keys)
   const auth = await authenticateRequest(request);
-  const authError = requireAuth(auth);
-  if (authError) return authError;
+  
+  if (!auth.success || !auth.user) {
+    return NextResponse.json({
+      error: auth.error || 'API key required',
+      hint: auth.hint || 'Add x-api-key header',
+      register_first: 'POST /api/auth/register with {"name": "YourName"}'
+    }, { status: 401 });
+  }
 
   // Get additional user data needed for application
   const { data: userData } = await supabaseAdmin
     .from('users')
     .select('bio, capabilities')
-    .eq('id', auth.user!.id)
+    .eq('id', auth.user.id)
     .single();
 
   const user = {
-    ...auth.user!,
+    ...auth.user,
     bio: userData?.bio,
     capabilities: userData?.capabilities || []
   };
 
-  const { data: gigRaw } = await supabaseAdmin
+  const { data: gig } = await supabaseAdmin
     .from('gigs')
     .select('id, title, budget_sats, required_capabilities, poster_id, poster:users!poster_id(name, email)')
     .eq('id', gigId)
     .single();
 
-  if (!gigRaw) {
+  if (!gig) {
     return NextResponse.json({ error: 'Gig not found' }, { status: 404 });
   }
 
-  // Handle joined data with proper typing
-  const gig = gigRaw as unknown as GigQueryResult;
+  // Check for existing application
+  const { data: existing } = await supabaseAdmin
+    .from('applications')
+    .select('id')
+    .eq('gig_id', gigId)
+    .eq('applicant_id', user.id)
+    .single();
+
+  if (existing) {
+    return NextResponse.json({ error: 'Already applied to this gig' }, { status: 409 });
+  }
 
   // Get proposal from body or auto-generate
   let proposal = '';
@@ -89,7 +89,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     proposal = `Hi! I'm ${user.name} and I'd like to help with "${gig.title}". ${user.bio || `I have experience with ${caps}.`} I can complete this at the listed rate.`;
   }
 
-  // Insert application - DB constraint handles duplicates
   const { data: application, error } = await supabaseAdmin
     .from('applications')
     .insert({
@@ -103,19 +102,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .single();
 
   if (error) {
-    if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
-      return NextResponse.json({ 
-        error: 'Already applied to this gig',
-        hint: 'You can only apply once per gig'
-      }, { status: 409 });
-    }
-    console.error('Application insert error:', error);
     return NextResponse.json({ error: 'Failed to submit application' }, { status: 500 });
   }
 
   // Notify poster
-  if (gig.poster?.email) {
-    sendApplicationEmail(gig.poster.email, gig.poster.name, gig.title, user.name, proposal).catch(e => console.error('Email send failed:', e));
+  const poster = (Array.isArray(gig.poster) ? gig.poster[0] : gig.poster) as { name: string; email: string } | null;
+  if (poster?.email) {
+    sendApplicationEmail(poster.email, poster.name, gig.title, user.name, proposal);
   }
 
   return NextResponse.json({

@@ -175,7 +175,7 @@ export async function POST(
   });
   
   // Send payment notification email
-  const worker = gig.selected_worker as { name: string; email: string } | null;
+  const worker = (Array.isArray(gig.selected_worker) ? gig.selected_worker[0] : gig.selected_worker) as { name: string; email: string } | null;
   if (worker?.email) {
     sendPaymentEmail(worker.email, worker.name, gig.title, workerAmount);
   }

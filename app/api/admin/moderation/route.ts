@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       moderator_id: admin.id
     });
   
-  const poster = gig.poster as { email?: string; name?: string } | null;
+  const poster = (Array.isArray(gig.poster) ? gig.poster[0] : gig.poster) as { email?: string; name?: string } | null;
   if (action === 'reject' && poster?.email) {
     const emailContent = gigRejectedEmail(gig.title, notes);
     await sendEmail({
