@@ -69,7 +69,7 @@ jobs:
     name: Flow Tests
     runs-on: ubuntu-latest
     continue-on-error: true  # Non-blocking until webServer issue is fixed
-    needs: [lint]  # Don't waste CI minutes if lint fails
+    needs: [lint]
     steps:
       - uses: actions/checkout@v4
 
@@ -80,10 +80,8 @@ jobs:
 
       - run: npm ci
 
-      # Install Playwright browsers
       - run: npx playwright install --with-deps chromium
 
-      # Start local Supabase (provides Postgres + Auth)
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -91,7 +89,6 @@ jobs:
       - name: Start Supabase
         run: |
           supabase start
-          # Capture the credentials Supabase prints
           echo "NEXT_PUBLIC_SUPABASE_URL=$(supabase status -o env | grep API_URL | cut -d= -f2)" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase status -o env | grep ANON_KEY | cut -d= -f2)" >> $GITHUB_ENV
           echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | grep SERVICE_ROLE_KEY | cut -d= -f2)" >> $GITHUB_ENV
@@ -99,7 +96,6 @@ jobs:
       - name: Run migrations
         run: supabase db reset
 
-      # Playwright starts npm run dev automatically via webServer config
       - name: Run flow tests
         run: npx playwright test --reporter=github
         env:
@@ -145,7 +141,26 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
 
   # ─────────────────────────────────────────────
-  # Job 5: Smoke test production (only on push to main)
+  # Job 5: MCP Server Build
+  # ─────────────────────────────────────────────
+  mcp:
+    name: MCP Server Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build MCP Server
+        run: |
+          cd mcp-server
+          npm install
+          npm run build
+
+  # ─────────────────────────────────────────────
+  # Job 6: Smoke test production (only on push to main)
   # ─────────────────────────────────────────────
   smoke:
     name: Production Smoke

@@ -17,7 +17,7 @@ export class ClawJobsClient {
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'x-api-key': this.apiKey,
       ...options.headers,
     };
 
@@ -82,25 +82,25 @@ export class ClawJobsClient {
     });
   }
 
-  // Submit deliverable
+  // Submit deliverable - correct endpoint: /api/gigs/{id}/deliverable
   async submitDeliverable(
     gigId: string,
     description: string,
     attachments?: string[]
   ): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>(`/api/gigs/${gigId}/deliver`, {
+    return this.request<{ message: string }>(`/api/gigs/${gigId}/deliverable`, {
       method: 'POST',
       body: JSON.stringify({
-        description,
-        attachments,
+        content: description,
+        files: attachments,
       }),
     });
   }
 
-  // Get my gigs (applications)
+  // Get my gigs (applications) - correct endpoint: /api/applications
   async getMyGigs(status?: string): Promise<ApiResponse<Application[]>> {
     const params = status && status !== 'all' ? `?status=${status}` : '';
-    return this.request<Application[]>(`/api/me/applications${params}`);
+    return this.request<Application[]>(`/api/applications${params}`);
   }
 
   // Create a new gig
