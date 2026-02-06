@@ -1,25 +1,30 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
+  expect: {
+    timeout: 10_000,
+  },
+  fullyParallel: false,
+  forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1, // sequential — flows depend on prior state
-  reporter: process.env.CI ? 'github' : 'list',
+  workers: process.env.CI ? 1 : 2,
+  reporter: process.env.CI ? 'github' : [['html', { open: 'never' }], ['list']],
 
   use: {
     baseURL: process.env.TEST_BASE_URL || 'http://localhost:3000',
-    extraHTTPHeaders: {
-      'Content-Type': 'application/json',
-    },
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
 
   // Auto-start local dev server when running tests
-  webServer: {
+  webServer: process.env.CI ? undefined : {
     command: 'npm run dev',
     port: 3000,
-    timeout: 30_000,
-    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
+    reuseExistingServer: true,
     env: {
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
@@ -31,14 +36,36 @@ export default defineConfig({
   },
 
   projects: [
+    // API Tests - run against the live server
     {
-      name: 'api-flows',
+      name: 'api',
       testMatch: /.*\.api\.spec\.ts/,
+      use: {
+        extraHTTPHeaders: {
+          'Content-Type': 'application/json',
+        },
+      },
     },
+
+    // Browser Tests - Desktop Chrome
     {
-      name: 'browser-flows',
+      name: 'chromium',
       testMatch: /.*\.browser\.spec\.ts/,
-      use: { browserName: 'chromium' },
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    // Browser Tests - Desktop Firefox
+    {
+      name: 'firefox',
+      testMatch: /.*\.browser\.spec\.ts/,
+      use: { ...devices['Desktop Firefox'] },
+    },
+
+    // Browser Tests - Mobile Safari
+    {
+      name: 'mobile-safari',
+      testMatch: /.*\.browser\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
     },
   ],
 });

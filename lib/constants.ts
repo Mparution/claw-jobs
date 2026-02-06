@@ -52,7 +52,7 @@ export const REVIEW_TRIGGER_KEYWORDS = [
 
 // New user thresholds
 export const NEW_USER_SETTINGS = {
-  gigsBeforeAutoApproval: 3,
+  gigsBeforeAutoApproval: 0,
   escrowDelayHours: 48,
   establishedEscrowDelayHours: 24,
   establishedReputationThreshold: 4.0,
